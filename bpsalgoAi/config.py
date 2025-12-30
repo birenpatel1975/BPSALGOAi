@@ -26,13 +26,12 @@ class TestingConfig(Config):
 
 # mStock API Credentials and Base URLs
 API_KEY = os.getenv('API_KEY', '')
-API_TYPE = os.getenv('API_TYPE', 'A')
 
-# Type A: Algo Trading API (login, session, orders, fund summary)
+# Type A: Primary API (login, session, orders, fund summary)
 MSTOCK_API_BASE_URL_A = os.getenv('MSTOCK_API_BASE_URL_A', 'https://api.mstock.trade/openapi/typea')
 
-# Type M: Market Data API (LTP, quotes, depth, websocket token)
-MSTOCK_API_BASE_URL_M = os.getenv('MSTOCK_API_BASE_URL_M', 'https://api.mstock.trade/openapi/market')
+# Type B: Secondary API (same endpoints, alternative for redundancy)
+MSTOCK_API_BASE_URL_B = os.getenv('MSTOCK_API_BASE_URL_B', 'https://api.mstock.trade/openapi/typeb')
 
 # WebSocket Configuration
 MSTOCK_WS_ENDPOINT = os.getenv('MSTOCK_WS_ENDPOINT', 'wss://ws.mstock.trade')

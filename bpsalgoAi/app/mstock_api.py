@@ -1,6 +1,6 @@
 """
-mStock Market Data API Module
-Implements Type M API for live market data (LTP, quotes, depth)
+mStock API Module
+Handles Type A/B API calls with proper authentication headers
 """
 import requests
 import logging
@@ -16,52 +16,48 @@ MOCK_MARKET_DATA = {
 }
 
 class MStockAPI:
-    """Client for Type M API (market data)"""
+    """Client for Type A/B API with proper authentication"""
     
-    def __init__(self, base_url: str, jwt_token: Optional[str] = None, api_key: Optional[str] = None):
+    def __init__(self, base_url: str, api_key: str, auth=None):
         """
-        Initialize MStock API client for Type M (market data)
+        Initialize mStock API client for Type A/B
         
         Args:
-            base_url: Type M API base URL (e.g., https://api.mstock.trade/openapi/market)
-            jwt_token: JWT token from Type A authentication
-            api_key: API key as fallback
+            base_url: API base URL (https://api.mstock.trade/openapi/typea or typeb)
+            api_key: mStock API Key
+            auth: MStockAuth instance for token management
         """
         self.base_url = base_url.rstrip('/')
-        self.jwt_token = jwt_token
         self.api_key = api_key
+        self.auth = auth
         self.session = requests.Session()
-        logger.info(f"MStockAPI initialized with Type M base URL: {self.base_url}")
-    
-    def set_jwt_token(self, token: str):
-        """Update JWT token from Type A auth"""
-        self.jwt_token = token
-        logger.debug("JWT token updated in MStockAPI client")
+        logger.info(f"MStockAPI initialized with base URL: {self.base_url}")
     
     def _get_headers(self) -> Dict[str, str]:
-        """Build request headers with JWT token"""
+        """Build request headers with proper authorization format"""
         headers = {
+            'X-Mirae-Version': '1',
             'Content-Type': 'application/json',
             'Accept': 'application/json'
         }
         
-        # Add JWT token if available
-        if self.jwt_token:
-            headers['Authorization'] = f'Bearer {self.jwt_token}'
-        elif self.api_key:
-            headers['X-API-Key'] = self.api_key
+        # Add authorization if access token is available
+        if self.auth and self.auth.access_token:
+            # Format: token api_key:access_token (as per official docs)
+            headers['Authorization'] = f'token {self.api_key}:{self.auth.access_token}'
         
         return headers
     
     def get_live_data(self, symbols: List[str] = None) -> Dict[str, Any]:
         """
         Get live market data for multiple symbols
+        Uses Market Quotes and Instruments API endpoint
         
         Args:
             symbols: List of stock symbols (default: NIFTY50, BANKNIFTY, FINNIFTY)
             
         Returns:
-            Dictionary with symbol data and quotes
+            Dictionary with symbol data
         """
         if symbols is None:
             symbols = ['NIFTY50', 'BANKNIFTY', 'FINNIFTY']
@@ -69,46 +65,49 @@ class MStockAPI:
         result = {
             'success': False,
             'data': [],
-            'error': None
+            'error': None,
+            'mock': False
         }
         
-        try:
-            # Try to fetch live quotes from Type M API
-            endpoint = f"{self.base_url}/quotes"
-            headers = self._get_headers()
-            
-            payload = {
-                'mode': 'LTP',  # Last Traded Price
-                'symbols': symbols
-            }
-            
-            logger.debug(f"Fetching live data from Type M API: {endpoint}")
-            response = self.session.post(endpoint, json=payload, headers=headers, timeout=10)
-            
-            if response.ok:
-                data = response.json()
-                result['success'] = True
-                result['data'] = data.get('quotes', [])
-                logger.info(f"Successfully fetched live data for {len(result['data'])} symbols")
-                return result
-            else:
-                logger.warning(f"Type M /quotes failed with status {response.status_code}: {response.text}")
-                # Fall back to mock data
-                result['data'] = self._get_mock_quotes(symbols)
-                return result
+        # Try to fetch from API if authenticated
+        if self.auth and self.auth.is_token_valid():
+            try:
+                # Try multiple possible endpoints for market quotes
+                endpoints = [
+                    f"{self.base_url}/market/quotes",
+                    f"{self.base_url}/marketquote",
+                    f"{self.base_url}/quote",
+                ]
+                
+                headers = self._get_headers()
+                payload = {'symbols': symbols}
+                
+                for endpoint in endpoints:
+                    try:
+                        logger.debug(f"Fetching live data from: {endpoint}")
+                        response = self.session.post(endpoint, json=payload, headers=headers, timeout=10)
+                        
+                        if response.ok:
+                            data = response.json()
+                            if data.get('status') == 'success':
+                                result['success'] = True
+                                result['data'] = data.get('data', [])
+                                logger.info(f"Successfully fetched live data from {endpoint}")
+                                return result
+                    except Exception as e:
+                        logger.debug(f"Endpoint {endpoint} failed: {e}")
+                        continue
+                
+            except Exception as e:
+                logger.warning(f"Error fetching live data: {str(e)}")
+        else:
+            logger.warning("Not authenticated. Access token missing or invalid.")
         
-        except requests.exceptions.Timeout:
-            logger.warning("Type M API request timeout, using mock data")
-            result['data'] = self._get_mock_quotes(symbols)
-            return result
-        except requests.exceptions.ConnectionError:
-            logger.warning(f"Failed to connect to Type M API at {self.base_url}, using mock data")
-            result['data'] = self._get_mock_quotes(symbols)
-            return result
-        except Exception as e:
-            logger.error(f"Error fetching live data: {str(e)}")
-            result['data'] = self._get_mock_quotes(symbols)
-            return result
+        # Fallback to mock data
+        logger.info("Using mock data for market quotes")
+        result['data'] = self._get_mock_quotes(symbols)
+        result['mock'] = True
+        return result
     
     def get_symbol_quote(self, symbol: str) -> Dict[str, Any]:
         """
@@ -121,60 +120,66 @@ class MStockAPI:
             Quote data dictionary
         """
         try:
+            if not self.auth or not self.auth.is_token_valid():
+                logger.warning(f"Cannot fetch quote for {symbol}: not authenticated")
+                return MOCK_MARKET_DATA.get(symbol, {'symbol': symbol, 'mock': True})
+            
             endpoint = f"{self.base_url}/quote"
             headers = self._get_headers()
-            
             params = {'symbol': symbol}
             
-            logger.debug(f"Fetching quote for {symbol} from Type M API")
+            logger.debug(f"Fetching quote for {symbol}")
             response = self.session.get(endpoint, params=params, headers=headers, timeout=10)
             
             if response.ok:
                 data = response.json()
-                logger.info(f"Successfully fetched quote for {symbol}")
-                return data.get('quote', {})
-            else:
-                logger.warning(f"Type M /quote failed for {symbol}: {response.status_code}")
-                return MOCK_MARKET_DATA.get(symbol, {})
+                if data.get('status') == 'success':
+                    logger.info(f"Successfully fetched quote for {symbol}")
+                    return data.get('data', {})
+                
+            logger.warning(f"Quote fetch failed for {symbol}: {response.status_code}")
+            return MOCK_MARKET_DATA.get(symbol, {'symbol': symbol, 'mock': True})
         
         except Exception as e:
             logger.warning(f"Error fetching quote for {symbol}: {str(e)}")
-            return MOCK_MARKET_DATA.get(symbol, {})
+            return MOCK_MARKET_DATA.get(symbol, {'symbol': symbol, 'mock': True})
     
-    def get_market_depth(self, symbol: str) -> Dict[str, Any]:
+    def get_fund_summary(self) -> Dict[str, Any]:
         """
-        Get market depth (bid/ask) for a symbol
+        Get account fund summary
+        Requires authentication
         
-        Args:
-            symbol: Stock symbol
-            
         Returns:
-            Market depth data
+            Fund summary data
         """
         try:
-            endpoint = f"{self.base_url}/depth"
+            if not self.auth or not self.auth.is_token_valid():
+                logger.warning("Cannot fetch fund summary: not authenticated")
+                return {'success': False, 'error': 'Not authenticated', 'data': None}
+            
+            endpoint = f"{self.base_url}/user/fundsummary"
             headers = self._get_headers()
             
-            params = {'symbol': symbol}
-            
-            logger.debug(f"Fetching depth for {symbol} from Type M API")
-            response = self.session.get(endpoint, params=params, headers=headers, timeout=10)
+            logger.debug("Fetching fund summary")
+            response = self.session.get(endpoint, headers=headers, timeout=10)
             
             if response.ok:
                 data = response.json()
-                logger.info(f"Successfully fetched depth for {symbol}")
-                return data.get('depth', {})
-            else:
-                logger.warning(f"Type M /depth failed for {symbol}: {response.status_code}")
-                return {'bids': [], 'asks': []}
+                if data.get('status') == 'success':
+                    logger.info("Successfully fetched fund summary")
+                    return {'success': True, 'data': data.get('data', [])}
+                
+            logger.warning(f"Fund summary fetch failed: {response.status_code}")
+            return {'success': False, 'error': response.text, 'data': None}
         
         except Exception as e:
-            logger.warning(f"Error fetching depth for {symbol}: {str(e)}")
-            return {'bids': [], 'asks': []}
+            logger.error(f"Error fetching fund summary: {str(e)}")
+            return {'success': False, 'error': str(e), 'data': None}
     
     def place_order(self, order_data: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Place an order (requires Type A API, but making request from here)
+        Place a trading order
+        Requires authentication
         
         Args:
             order_data: Order parameters
@@ -183,7 +188,10 @@ class MStockAPI:
             Order response
         """
         try:
-            # Note: Orders might require Type A API endpoint
+            if not self.auth or not self.auth.is_token_valid():
+                logger.warning("Cannot place order: not authenticated")
+                return {'success': False, 'error': 'Not authenticated'}
+            
             endpoint = f"{self.base_url}/order/place"
             headers = self._get_headers()
             
@@ -201,26 +209,12 @@ class MStockAPI:
     
     def get_account_info(self) -> Dict[str, Any]:
         """
-        Get account information (requires Type A API)
+        Get account information (alias for fund summary)
         
         Returns:
             Account info dictionary
         """
-        try:
-            endpoint = f"{self.base_url}/account/info"
-            headers = self._get_headers()
-            
-            logger.debug("Fetching account info")
-            response = self.session.get(endpoint, headers=headers, timeout=10)
-            
-            if response.ok:
-                return response.json()
-            else:
-                return {'success': False, 'error': response.text}
-        
-        except Exception as e:
-            logger.error(f"Error fetching account info: {str(e)}")
-            return {'success': False, 'error': str(e)}
+        return self.get_fund_summary()
     
     def _get_mock_quotes(self, symbols: List[str]) -> List[Dict[str, Any]]:
         """
