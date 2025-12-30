@@ -89,7 +89,53 @@ def get_quote(symbol):
 def get_market_ws():
     """Return WebSocket URL for frontend to connect to real-time market data"""
     ws_url = mstock_api.get_ws_url()
-    return jsonify({'ws_url': ws_url})
+    # Return under key `ws_endpoint` for frontend compatibility
+    return jsonify({'ws_endpoint': ws_url})
+
+
+@api_bp.route('/auth/refresh', methods=['POST'])
+def refresh_auth():
+    """Attempt to refresh the Type A session using stored refresh token"""
+    try:
+        success = mstock_auth.refresh_session()
+        return jsonify({
+            'success': bool(success),
+            'access_token_valid': mstock_auth.is_token_valid(),
+            'ws_endpoint': mstock_api.get_ws_url()
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/auth/start', methods=['POST'])
+def auth_start():
+    """Trigger Type A login (step1) to send OTP to user via SMS/Email"""
+    try:
+        sent = mstock_auth.step1_login()
+        if sent:
+            return jsonify({'success': True, 'message': 'OTP sent. Check SMS/Email.'})
+        return jsonify({'success': False, 'message': 'Failed to send OTP. Check credentials or logs.'}), 400
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/auth/verify', methods=['POST'])
+def auth_verify():
+    """Verify OTP (step2) and obtain session token"""
+    try:
+        body = request.get_json() or {}
+        otp = body.get('otp') or body.get('request_token')
+        if not otp:
+            return jsonify({'success': False, 'message': 'OTP required'}), 400
+
+        ok = mstock_auth.step2_session_token(otp)
+        return jsonify({
+            'success': bool(ok),
+            'access_token_valid': mstock_auth.is_token_valid(),
+            'ws_endpoint': mstock_api.get_ws_url()
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 # ==================== Account API ====================
 
@@ -98,6 +144,17 @@ def get_account_info():
     """Get account information"""
     account_info = mstock_api.get_account_info()
     return jsonify(account_info)
+
+
+@api_bp.route('/watchlist', methods=['GET'])
+def get_watchlist():
+    """Get watchlist from mStock account (Type A API)"""
+    try:
+        watchlist = mstock_api.get_watchlist()
+        return jsonify(watchlist)
+    except Exception as e:
+        logger.error(f"Error fetching watchlist: {e}")
+        return jsonify({'success': False, 'error': str(e), 'data': []}), 500
 
 # ==================== Configuration API ====================
 

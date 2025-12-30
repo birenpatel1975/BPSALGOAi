@@ -18,6 +18,16 @@ const marketData = document.getElementById('marketData');
 const accountInfo = document.getElementById('accountInfo');
 const activityLog = document.getElementById('activityLog');
 const configInfo = document.getElementById('configInfo');
+const wsToggle = document.getElementById('wsToggle');
+const wsStatus = document.getElementById('wsStatus');
+const wsConnectBtn = document.getElementById('wsConnectBtn');
+const wsDisconnectBtn = document.getElementById('wsDisconnectBtn');
+const sendOtpBtn = document.getElementById('sendOtpBtn');
+const verifyOtpBtn = document.getElementById('verifyOtpBtn');
+const otpInput = document.getElementById('otpInput');
+const authStatus = document.getElementById('authStatus');
+const watchlistData = document.getElementById('watchlistData');
+const refreshWatchlistBtn = document.getElementById('refreshWatchlistBtn');
 
 // Initialize dashboard
 document.addEventListener('DOMContentLoaded', function() {
@@ -39,8 +49,44 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Auto-refresh market data every 10 seconds
     setInterval(refreshMarketData, 10000);
-    // Initialize WS if configured
+    // Restore WS toggle preference
+    try {
+        const pref = localStorage.getItem('ws_enabled');
+        if (pref === null) {
+            // default to enabled if access token present
+            wsToggle.checked = true;
+        } else {
+            wsToggle.checked = pref === 'true';
+        }
+    } catch (e) {
+        console.warn('localStorage not available', e);
+    }
+
+    // Set up WS controls
+    wsToggle.addEventListener('change', (e) => {
+        try { localStorage.setItem('ws_enabled', e.target.checked); } catch (err) {}
+        if (e.target.checked) {
+            initWebSocketIfConfigured();
+        } else {
+            closeWebSocket();
+            updateWsStatus('disabled');
+        }
+    });
+
+    wsConnectBtn.addEventListener('click', () => initWebSocketIfConfigured(true));
+    wsDisconnectBtn.addEventListener('click', () => { closeWebSocket(); updateWsStatus('disconnected'); });
+
+    // Initialize WS if configured and toggle enabled
     initWebSocketIfConfigured();
+    // Auth controls
+    if (sendOtpBtn) sendOtpBtn.addEventListener('click', sendOtp);
+    if (verifyOtpBtn) verifyOtpBtn.addEventListener('click', verifyOtp);
+    // Watchlist controls
+    if (refreshWatchlistBtn) refreshWatchlistBtn.addEventListener('click', refreshWatchlist);
+    // Show initial auth status
+    try {
+        authStatus.textContent = cfg && cfg.access_token_valid ? 'Auth: valid' : 'Auth: not authenticated';
+    } catch (e) {}
 });
 
 /**
@@ -340,14 +386,107 @@ async function initWebSocketIfConfigured() {
         const wsUrl = cfg.ws_endpoint || null;
         const tokenValid = cfg.access_token_valid;
 
+        console.log('WS config check:', { wsUrl, tokenValid, cfg });
+
+        // Check user preference
+        const enabled = wsToggle ? wsToggle.checked : true;
+
+        if (!enabled) {
+            console.log('WebSocket disabled by user preference');
+            updateWsStatus('disabled');
+            return;
+        }
+
         if (wsUrl && tokenValid) {
+            console.log('Attempting WS connection to:', wsUrl);
             connectWebSocket(wsUrl);
         } else {
-            console.warn('WebSocket not initialized: ws_url or token missing/invalid');
+            console.warn('WebSocket not initialized', { wsUrl, tokenValid });
+            addLog('WebSocket unavailable: token=' + (tokenValid ? 'valid' : 'invalid') + ', url=' + (wsUrl ? 'yes' : 'no'), 'warning');
+            updateWsStatus('disconnected');
             closeWebSocket();
         }
     } catch (err) {
         console.warn('Error checking websocket config:', err);
+        addLog('WS config fetch error: ' + err.message, 'error');
+    }
+}
+
+// --- Auth helpers ---
+async function sendOtp() {
+    try {
+        sendOtpBtn.disabled = true;
+        addLog('Requesting OTP...', 'info');
+        const resp = await fetch(`${API_BASE}/auth/start`, { method: 'POST' });
+        const data = await resp.json();
+        if (data.success) {
+            addLog('OTP sent. Check SMS/Email.', 'success');
+            authStatus.textContent = 'Auth: OTP sent';
+        } else {
+            addLog('Failed to send OTP: ' + (data.message || data.error), 'error');
+            authStatus.textContent = 'Auth: send failed';
+        }
+    } catch (e) {
+        addLog('Error requesting OTP: ' + e.message, 'error');
+        authStatus.textContent = 'Auth: error';
+    } finally {
+        sendOtpBtn.disabled = false;
+    }
+}
+
+async function verifyOtp() {
+    try {
+        const otp = otpInput.value && otpInput.value.trim();
+        if (!otp) { addLog('Please enter OTP', 'warning'); return; }
+        verifyOtpBtn.disabled = true;
+        addLog('Verifying OTP...', 'info');
+
+        const resp = await fetch(`${API_BASE}/auth/verify`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ otp })
+        });
+
+        const data = await resp.json();
+        if (data.success) {
+            addLog('OTP verified, session established', 'success');
+            authStatus.textContent = data.access_token_valid ? 'Auth: valid' : 'Auth: invalid';
+            // refresh config and try WS
+            await loadConfig();
+            refreshWatchlist();
+            initWebSocketIfConfigured(true);
+        } else {
+            addLog('OTP verification failed: ' + (data.message || data.error), 'error');
+            authStatus.textContent = 'Auth: verify failed';
+        }
+    } catch (e) {
+        addLog('Error verifying OTP: ' + e.message, 'error');
+        authStatus.textContent = 'Auth: error';
+    } finally {
+        verifyOtpBtn.disabled = false;
+    }
+}
+
+function updateWsStatus(state) {
+    // states: connecting, connected, disconnected, disabled, error
+    if (!wsStatus) return;
+    wsStatus.className = 'ws-status ws-' + state;
+    switch (state) {
+        case 'connecting': wsStatus.textContent = 'WS: connecting'; break;
+        case 'connected': wsStatus.textContent = 'WS: connected'; break;
+        case 'disabled': wsStatus.textContent = 'WS: disabled'; break;
+        case 'error': wsStatus.textContent = 'WS: error'; break;
+        default: wsStatus.textContent = 'WS: disconnected';
+    }
+    // Button states
+    if (wsConnectBtn && wsDisconnectBtn) {
+        if (state === 'connected') {
+            wsConnectBtn.disabled = true;
+            wsDisconnectBtn.disabled = false;
+        } else {
+            wsConnectBtn.disabled = false;
+            wsDisconnectBtn.disabled = true;
+        }
     }
 }
 
@@ -357,20 +496,57 @@ function connectWebSocket(url) {
         console.log('WebSocket already connected or connecting');
         return;
     }
-
     try {
         console.log('Connecting WebSocket to', url);
+        updateWsStatus('connecting');
         marketSocket = new WebSocket(url);
+
+        // Heartbeat monitoring
+        let heartbeatInterval = null;
+        let heartbeatTimeout = null;
+        let lastMessageTime = Date.now();
+
+        function startHeartbeat() {
+            // send ping every 20s
+            heartbeatInterval = setInterval(() => {
+                try { marketSocket.send(JSON.stringify({ type: 'ping' })); } catch (e) {}
+                // set timeout to check for any message in 30s
+                clearTimeout(heartbeatTimeout);
+                heartbeatTimeout = setTimeout(() => {
+                    const age = Date.now() - lastMessageTime;
+                    if (age > 30000) {
+                        console.warn('No WS messages seen recently, closing socket to reconnect');
+                        marketSocket.close();
+                    }
+                }, 30000);
+            }, 20000);
+        }
+
+        function stopHeartbeat() {
+            if (heartbeatInterval) { clearInterval(heartbeatInterval); heartbeatInterval = null; }
+            if (heartbeatTimeout) { clearTimeout(heartbeatTimeout); heartbeatTimeout = null; }
+        }
 
         marketSocket.onopen = () => {
             console.log('WebSocket connected');
             addLog('WebSocket connected', 'success');
             reconnectAttempts = 0;
+            lastMessageTime = Date.now();
+            startHeartbeat();
+            updateWsStatus('connected');
+            // Show ephemeral confirmation banner
+            showConfirmation('WebSocket connected');
         };
 
         marketSocket.onmessage = (evt) => {
+            lastMessageTime = Date.now();
             try {
                 const payload = JSON.parse(evt.data);
+                // handle simple pong
+                if (payload && payload.type === 'pong') {
+                    return;
+                }
+
                 if (payload && (payload.quotes || payload.data || payload.symbols)) {
                     if (payload.quotes) {
                         displayMarketData({ symbols: payload.quotes });
@@ -390,21 +566,105 @@ function connectWebSocket(url) {
         marketSocket.onerror = (err) => {
             console.error('WebSocket error', err);
             addLog('WebSocket error', 'error');
+            updateWsStatus('error');
         };
 
         marketSocket.onclose = (evt) => {
             console.warn('WebSocket closed', evt);
             addLog('WebSocket disconnected', 'warning');
+            stopHeartbeat();
+            updateWsStatus('disconnected');
             attemptReconnect(url);
         };
 
     } catch (e) {
         console.error('Failed to create WebSocket', e);
+        addLog('WebSocket creation failed', 'error');
+        updateWsStatus('error');
         attemptReconnect(url);
     }
 }
 
+function showConfirmation(message, timeout = 3500) {
+    try {
+        const el = document.getElementById('confirmation');
+        if (!el) return;
+        el.textContent = message;
+        el.style.display = 'block';
+        setTimeout(() => { el.style.display = 'none'; }, timeout);
+    } catch (e) {
+        console.warn('Unable to show confirmation', e);
+    }
+}
+
+// --- Watchlist support ---
+async function refreshWatchlist() {
+    try {
+        refreshWatchlistBtn.disabled = true;
+        addLog('Fetching watchlist...', 'info');
+        const resp = await fetch(`${API_BASE}/watchlist`, { method: 'GET' });
+        const data = await resp.json();
+
+        if (data.success && data.data && Array.isArray(data.data)) {
+            displayWatchlist(data.data);
+            addLog('✅ Watchlist loaded (' + data.data.length + ' items)', 'success');
+        } else if (data.data && Array.isArray(data.data) && data.data.length > 0) {
+            displayWatchlist(data.data);
+            addLog('✅ Watchlist loaded (' + data.data.length + ' items)', 'success');
+        } else {
+            addLog('⚠️ Watchlist empty or not available', 'warning');
+            watchlistData.innerHTML = '<p class="placeholder">No watchlist items</p>';
+        }
+        refreshWatchlistBtn.disabled = false;
+    } catch (e) {
+        addLog('❌ Error fetching watchlist: ' + e.message, 'error');
+        refreshWatchlistBtn.disabled = false;
+    }
+}
+
+function displayWatchlist(items) {
+    watchlistData.innerHTML = '';
+    if (!items || items.length === 0) {
+        watchlistData.innerHTML = '<p class="placeholder">No watchlist items</p>';
+        return;
+    }
+
+    const table = document.createElement('table');
+    table.style.width = '100%';
+    table.style.borderCollapse = 'collapse';
+    table.innerHTML = '<thead><tr><th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Symbol</th><th style="border: 1px solid #ddd; padding: 8px; text-align: right;">Price</th><th style="border: 1px solid #ddd; padding: 8px; text-align: right;">Change</th></tr></thead>';
+
+    const tbody = document.createElement('tbody');
+    items.forEach(item => {
+        if (typeof item === 'string') {
+            // Simple symbol string
+            const row = document.createElement('tr');
+            row.innerHTML = `<td style="border: 1px solid #ddd; padding: 8px;">${item}</td><td style="border: 1px solid #ddd; padding: 8px; text-align: right;">-</td><td style="border: 1px solid #ddd; padding: 8px; text-align: right;">-</td>`;
+            tbody.appendChild(row);
+        } else if (typeof item === 'object' && item.symbol) {
+            // Object with symbol, price, change
+            const row = document.createElement('tr');
+            const price = item.price || item.ltp || '-';
+            const change = item.change || item.pchange || '-';
+            const changeClass = change > 0 ? 'positive' : change < 0 ? 'negative' : '';
+            row.innerHTML = `
+                <td style="border: 1px solid #ddd; padding: 8px;">${item.symbol}</td>
+                <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${price}</td>
+                <td style="border: 1px solid #ddd; padding: 8px; text-align: right; color: ${change > 0 ? 'green' : change < 0 ? 'red' : 'black'};">${change}</td>
+            `;
+            tbody.appendChild(row);
+        }
+    });
+    table.appendChild(tbody);
+    watchlistData.appendChild(table);
+}
+
 function attemptReconnect(url) {
+    if (!wsToggle || !wsToggle.checked) {
+        console.log('User disabled WebSocket; not attempting reconnect');
+        return;
+    }
+
     if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
         console.warn('Max WebSocket reconnect attempts reached');
         addLog('Max WebSocket reconnect attempts reached', 'error');

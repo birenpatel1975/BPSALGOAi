@@ -142,10 +142,81 @@ class MStockAuth:
         # Check if token exists and is still valid
         if self.access_token and self.token_expires_at and datetime.now() < self.token_expires_at:
             return self.access_token
-        
+
+        # Try to refresh automatically if refresh_token is available
+        if self.refresh_token:
+            logger.info("Access token expired or missing — attempting refresh using refresh_token")
+            try:
+                refreshed = self.refresh_session()
+                if refreshed and self.access_token:
+                    return self.access_token
+            except Exception as e:
+                logger.warning(f"Automatic refresh failed: {e}")
+
         logger.warning("Access token missing or expired. Please authenticate with OTP.")
         logger.warning("Run: auth.step1_login() → receive OTP → auth.step2_session_token(otp)")
         return None
+
+    def refresh_session(self) -> bool:
+        """
+        Attempt to refresh the session using the stored refresh token.
+
+        Returns:
+            True if refresh succeeded and access_token updated, False otherwise.
+        """
+        try:
+            if not self.refresh_token:
+                logger.error("No refresh_token available to refresh session")
+                return False
+
+            endpoint = f"{self.base_url}/session/refresh"
+            headers = {
+                'X-Mirae-Version': '1',
+                'Content-Type': 'application/x-www-form-urlencoded'
+            }
+            payload = {
+                'api_key': self.api_key,
+                'refresh_token': self.refresh_token
+            }
+
+            logger.debug(f"Refreshing session at {endpoint}")
+            response = self.session.post(endpoint, data=payload, headers=headers, timeout=10)
+
+            if response.ok:
+                data = response.json()
+                if data.get('status') == 'success':
+                    new_access = data.get('data', {}).get('access_token')
+                    new_refresh = data.get('data', {}).get('refresh_token')
+                    expires_in = data.get('data', {}).get('expires_in')
+
+                    if new_access:
+                        self.access_token = new_access
+                        if new_refresh:
+                            self.refresh_token = new_refresh
+                        # If expires_in provided, set expiry accordingly; otherwise default to 24h
+                        if expires_in:
+                            try:
+                                self.token_expires_at = datetime.now() + timedelta(seconds=int(expires_in))
+                            except Exception:
+                                self.token_expires_at = datetime.now() + timedelta(hours=24)
+                        else:
+                            self.token_expires_at = datetime.now() + timedelta(hours=24)
+
+                        logger.info("Session refreshed successfully")
+                        return True
+                    else:
+                        logger.error(f"Refresh succeeded but no access_token returned: {data}")
+                        return False
+                else:
+                    logger.error(f"Refresh failed: {data.get('message', 'Unknown error')}")
+                    return False
+            else:
+                logger.error(f"Refresh HTTP error {response.status_code}: {response.text}")
+                return False
+
+        except Exception as e:
+            logger.error(f"Error refreshing session: {e}")
+            return False
     
     def is_token_valid(self) -> bool:
         """Check if current access token is still valid"""

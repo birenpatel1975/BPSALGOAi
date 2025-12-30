@@ -8,6 +8,7 @@
 </head>
 <body>
     <div class="container">
+        <div id="confirmation" class="confirmation" style="display:none;position:fixed;top:16px;right:16px;padding:10px 14px;background:#0b8457;color:#fff;border-radius:6px;z-index:1000;box-shadow:0 2px 8px rgba(0,0,0,0.1);">Confirmed</div>
         <!-- Header -->
         <header class="header">
             <div class="header-content">
@@ -47,10 +48,28 @@
                 </div>
             </section>
 
+            <!-- Watchlist Section -->
+            <section class="card watchlist-section">
+                <h2>Watchlist</h2>
+                <button id="refreshWatchlistBtn" class="btn btn-refresh">🔄 Refresh Watchlist</button>
+                <div id="watchlistData" class="watchlist-data">
+                    <p class="placeholder">Loading watchlist from your account...</p>
+                </div>
+            </section>
+
             <!-- Live Market Data Section -->
             <section class="card market-section">
                 <h2>Live Market Data</h2>
-                <button id="refreshDataBtn" class="btn btn-refresh">🔄 Refresh Data</button>
+                <div class="market-controls">
+                    <button id="refreshDataBtn" class="btn btn-refresh">🔄 Refresh Data</button>
+                    <label class="ws-toggle">
+                        <input type="checkbox" id="wsToggle">
+                        <span>Live Updates (WebSocket)</span>
+                    </label>
+                    <button id="wsConnectBtn" class="btn btn-small">Connect WS</button>
+                    <button id="wsDisconnectBtn" class="btn btn-small" disabled>Disconnect WS</button>
+                    <span id="wsStatus" class="ws-status">WS: disconnected</span>
+                </div>
                 <div id="marketData" class="market-data">
                     <p class="placeholder">Click refresh to load market data...</p>
                 </div>
@@ -78,6 +97,13 @@
                 <h2>Configuration</h2>
                 <div id="configInfo" class="config-info">
                     <p class="placeholder">Loading configuration...</p>
+                </div>
+                <div class="auth-controls">
+                    <label for="otpInput">OTP (received via SMS/Email):</label>
+                    <input id="otpInput" type="text" placeholder="Enter OTP here" maxlength="16" />
+                    <button id="sendOtpBtn" class="btn btn-small">Send OTP</button>
+                    <button id="verifyOtpBtn" class="btn btn-small">Verify OTP</button>
+                    <span id="authStatus" class="auth-status">Auth: unknown</span>
                 </div>
             </section>
         </main>

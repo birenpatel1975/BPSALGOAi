@@ -235,6 +235,53 @@ class MStockAPI:
         """
         return self.get_fund_summary()
     
+    def get_watchlist(self) -> Dict[str, Any]:
+        """
+        Fetch watchlist from mStock account (Type A API).
+        Typically available at /user/watchlist or similar endpoint.
+        
+        Returns:
+            Dictionary with watchlist data and symbols
+        """
+        try:
+            if not self.auth or not self.auth.is_token_valid():
+                logger.warning("Cannot fetch watchlist: not authenticated")
+                return {'success': False, 'data': [], 'error': 'Not authenticated'}
+            
+            # Try possible watchlist endpoints
+            endpoints = [
+                f"{self.base_url}/user/watchlist",
+                f"{self.base_url}/watchlist",
+                f"{self.base_url}/user/favorites",
+            ]
+            
+            headers = self._get_headers()
+            
+            for endpoint in endpoints:
+                try:
+                    logger.debug(f"Trying watchlist endpoint: {endpoint}")
+                    response = self.session.get(endpoint, headers=headers, timeout=10)
+                    
+                    if response.ok:
+                        data = response.json()
+                        if data.get('status') == 'success' or 'data' in data:
+                            logger.info(f"Successfully fetched watchlist from {endpoint}")
+                            # Normalize response
+                            watchlist_data = data.get('data', [])
+                            if isinstance(watchlist_data, dict):
+                                watchlist_data = watchlist_data.get('symbols', [])
+                            return {'success': True, 'data': watchlist_data}
+                except Exception as e:
+                    logger.debug(f"Endpoint {endpoint} failed: {e}")
+                    continue
+            
+            logger.warning("No watchlist endpoint responded successfully")
+            return {'success': False, 'data': [], 'error': 'Watchlist endpoint not found'}
+        
+        except Exception as e:
+            logger.error(f"Error fetching watchlist: {str(e)}")
+            return {'success': False, 'data': [], 'error': str(e)}
+    
     def _get_mock_quotes(self, symbols: List[str]) -> List[Dict[str, Any]]:
         """
         Get mock quote data for fallback
