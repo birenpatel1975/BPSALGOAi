@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BPSAlgoAI Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <h1>🤖 BPSAlgoAI Dashboard</h1>
+                <p class="subtitle">AI-Based Algorithmic Trading Automation</p>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Algo Agent Control Section -->
+            <section class="card algo-section">
+                <h2>Algo Agent Control</h2>
+                <div class="algo-controls">
+                    <button id="startBtn" class="btn btn-start">
+                        <span class="btn-icon">▶️</span> Start Agent
+                    </button>
+                    <button id="stopBtn" class="btn btn-stop" disabled>
+                        <span class="btn-icon">⏹️</span> Stop Agent
+                    </button>
+                </div>
+                
+                <!-- Status Display -->
+                <div class="status-display">
+                    <div class="status-item">
+                        <span class="status-label">Status:</span>
+                        <span id="agentStatus" class="status-value status-stopped">STOPPED</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Last Execution:</span>
+                        <span id="lastExecution" class="status-value">-</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Total Trades:</span>
+                        <span id="tradeCount" class="status-value">0</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Live Market Data Section -->
+            <section class="card market-section">
+                <h2>Live Market Data</h2>
+                <button id="refreshDataBtn" class="btn btn-refresh">🔄 Refresh Data</button>
+                <div id="marketData" class="market-data">
+                    <p class="placeholder">Click refresh to load market data...</p>
+                </div>
+            </section>
+
+            <!-- Account Information Section -->
+            <section class="card account-section">
+                <h2>Account Information</h2>
+                <button id="refreshAccountBtn" class="btn btn-refresh">🔄 Refresh Account</button>
+                <div id="accountInfo" class="account-info">
+                    <p class="placeholder">Loading account information...</p>
+                </div>
+            </section>
+
+            <!-- Activity Log Section -->
+            <section class="card log-section">
+                <h2>Activity Log</h2>
+                <div id="activityLog" class="activity-log">
+                    <div class="log-entry log-info">Dashboard initialized</div>
+                </div>
+            </section>
+
+            <!-- Configuration Section -->
+            <section class="card config-section">
+                <h2>Configuration</h2>
+                <div id="configInfo" class="config-info">
+                    <p class="placeholder">Loading configuration...</p>
+                </div>
+            </section>
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>&copy; 2025 BPSAlgoAI. All rights reserved. | Windows 11 Pro | Type A API</p>
+        </footer>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+</body>
+</html>
