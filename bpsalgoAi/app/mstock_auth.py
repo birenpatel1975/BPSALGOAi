@@ -1,6 +1,6 @@
 """
 mStock Authentication Module
-Handles Type A API authentication to get JWT tokens
+Implements Type A API /connect/login for JWT token acquisition
 """
 import requests
 import logging
@@ -10,97 +10,87 @@ from datetime import datetime, timedelta
 logger = logging.getLogger(__name__)
 
 class MStockAuth:
-    """Handles Type A API authentication"""
+    """Handles Type A API authentication and JWT token management"""
     
     def __init__(self, api_key: str, base_url: str):
         """
-        Initialize MStock Auth client
+        Initialize MStock Auth client for Type A API
         
         Args:
-            api_key: Type A API Key
-            base_url: Base URL for Type A API (e.g., https://api.mstock.com)
+            api_key: mStock API Key
+            base_url: Type A API base URL (e.g., https://api.mstock.trade/openapi/typea)
         """
         self.api_key = api_key
         self.base_url = base_url.rstrip('/')
         self.jwt_token = None
         self.token_expires_at = None
         self.session = requests.Session()
-        logger.info(f"MStockAuth initialized with base URL: {self.base_url}")
+        logger.info(f"MStockAuth initialized with Type A base URL: {self.base_url}")
     
     def authenticate(self) -> Optional[str]:
         """
-        Authenticate using Type A API to get JWT token
+        Authenticate using Type A /connect/login endpoint
         
         Returns:
-            JWT token string if successful, None if failed
+            JWT token if successful, None if failed
         """
         try:
-            # Try common authentication endpoints
-            endpoints = [
-                f"{self.base_url}/v1/auth/token",
-                f"{self.base_url}/auth/login",
-                f"{self.base_url}/api/auth/token",
-            ]
+            endpoint = f"{self.base_url}/connect/login"
             
-            for endpoint in endpoints:
-                try:
-                    response = self._auth_request(endpoint)
-                    if response and response.get('success'):
-                        self.jwt_token = response.get('token') or response.get('access_token')
-                        if self.jwt_token:
-                            # Set expiry (assume 1 hour if not provided)
-                            exp_in = response.get('expires_in', 3600)
-                            self.token_expires_at = datetime.now() + timedelta(seconds=exp_in)
-                            logger.info(f"Successfully authenticated. Token expires at {self.token_expires_at}")
-                            return self.jwt_token
-                except Exception as e:
-                    logger.debug(f"Auth endpoint {endpoint} failed: {e}")
-                    continue
+            payload = {
+                'apikey': self.api_key
+            }
             
-            logger.warning("All authentication endpoints failed; using API key directly")
-            return None
+            headers = {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            }
             
-        except Exception as e:
-            logger.error(f"Authentication failed: {str(e)}")
-            return None
-    
-    def _auth_request(self, endpoint: str) -> Optional[Dict[str, Any]]:
-        """
-        Make an authentication request
-        
-        Args:
-            endpoint: Authentication endpoint URL
+            logger.debug(f"Attempting Type A authentication at {endpoint}")
+            response = self.session.post(endpoint, json=payload, headers=headers, timeout=10)
             
-        Returns:
-            Response JSON or None if failed
-        """
-        headers = {
-            'Authorization': f'Bearer {self.api_key}',
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-        }
-        
-        try:
-            response = self.session.get(endpoint, headers=headers, timeout=5)
             if response.ok:
                 data = response.json()
-                return data
+                logger.debug(f"Type A login response: {data}")
+                
+                # Extract JWT token from response
+                # Try common response field names
+                token = data.get('token') or data.get('jwttoken') or data.get('jwt_token') or data.get('access_token')
+                
+                if token:
+                    self.jwt_token = token
+                    # Set expiry (default to 1 hour if not provided)
+                    exp_in = data.get('expires_in', 3600)
+                    self.token_expires_at = datetime.now() + timedelta(seconds=exp_in)
+                    logger.info(f"Successfully authenticated with Type A API. Token expires at {self.token_expires_at}")
+                    return self.jwt_token
+                else:
+                    logger.warning(f"Type A login response missing token field. Response: {data}")
+                    return None
             else:
-                logger.debug(f"Auth endpoint returned {response.status_code}")
+                logger.error(f"Type A login failed with status {response.status_code}: {response.text}")
                 return None
+                
+        except requests.exceptions.Timeout:
+            logger.error("Type A authentication request timeout")
+            return None
+        except requests.exceptions.ConnectionError:
+            logger.error(f"Failed to connect to Type A API at {self.base_url}")
+            return None
         except Exception as e:
-            logger.debug(f"Auth request error: {e}")
+            logger.error(f"Type A authentication error: {str(e)}")
             return None
     
     def get_token(self) -> Optional[str]:
         """
-        Get valid JWT token, authenticating if necessary
+        Get valid JWT token, authenticating if necessary or if expired
         
         Returns:
             JWT token or None if authentication failed
         """
-        # If token doesn't exist or is expired, re-authenticate
+        # If token doesn't exist or is expired, authenticate
         if not self.jwt_token or (self.token_expires_at and datetime.now() >= self.token_expires_at):
+            logger.debug("JWT token missing or expired, re-authenticating...")
             self.authenticate()
         
         return self.jwt_token
@@ -112,3 +102,4 @@ class MStockAuth:
         if self.token_expires_at and datetime.now() >= self.token_expires_at:
             return False
         return True
+

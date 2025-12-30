@@ -1,459 +1,238 @@
 """
-mStock API Integration Module
-Handles Type B API calls for fetching live market data
+mStock Market Data API Module
+Implements Type M API for live market data (LTP, quotes, depth)
 """
 import requests
-import json
-from typing import Dict, List, Any
 import logging
+from typing import Dict, List, Any, Optional
 
 logger = logging.getLogger(__name__)
 
+# Mock market data for development/fallback
+MOCK_MARKET_DATA = {
+    'NIFTY50': {'symbol': 'NIFTY50', 'ltp': 23500.00, 'open': 23400.00, 'high': 23650.00, 'low': 23350.00, 'volume': 150000000},
+    'BANKNIFTY': {'symbol': 'BANKNIFTY', 'ltp': 47800.00, 'open': 47600.00, 'high': 48100.00, 'low': 47500.00, 'volume': 80000000},
+    'FINNIFTY': {'symbol': 'FINNIFTY', 'ltp': 21450.00, 'open': 21350.00, 'high': 21600.00, 'low': 21300.00, 'volume': 50000000},
+}
+
 class MStockAPI:
-    """Class to handle mStock Type B API requests for market data"""
+    """Client for Type M API (market data)"""
     
-    def __init__(self, api_key: str, base_url: str, jwt_token: str = None):
+    def __init__(self, base_url: str, jwt_token: Optional[str] = None, api_key: Optional[str] = None):
         """
-        Initialize MStock API client
+        Initialize MStock API client for Type M (market data)
         
         Args:
-            api_key: Type B API key for data fetching
-            base_url: Base URL for the mStock API
-            jwt_token: Optional JWT token from Type A authentication
+            base_url: Type M API base URL (e.g., https://api.mstock.trade/openapi/market)
+            jwt_token: JWT token from Type A authentication
+            api_key: API key as fallback
         """
-        self.api_key = api_key
-        self.base_url = base_url.rstrip('/') if base_url else "https://api.mstock.com"
+        self.base_url = base_url.rstrip('/')
         self.jwt_token = jwt_token
-        
+        self.api_key = api_key
         self.session = requests.Session()
-        # Set headers for Type B API
+        logger.info(f"MStockAPI initialized with Type M base URL: {self.base_url}")
+    
+    def set_jwt_token(self, token: str):
+        """Update JWT token from Type A auth"""
+        self.jwt_token = token
+        logger.debug("JWT token updated in MStockAPI client")
+    
+    def _get_headers(self) -> Dict[str, str]:
+        """Build request headers with JWT token"""
         headers = {
             'Content-Type': 'application/json',
             'Accept': 'application/json'
         }
         
-        # Use JWT token if available, otherwise use API key
+        # Add JWT token if available
         if self.jwt_token:
             headers['Authorization'] = f'Bearer {self.jwt_token}'
-        else:
-            # Type B API key header (adjust if needed)
-            headers['Authorization'] = f'Bearer {self.api_key}'
+        elif self.api_key:
+            headers['X-API-Key'] = self.api_key
         
-        self.session.headers.update(headers)
-        logger.info(f"MStockAPI (Type B) initialized with base URL: {self.base_url}")
+        return headers
     
-    def get_live_data(self, symbol: str = None) -> Dict[str, Any]:
+    def get_live_data(self, symbols: List[str] = None) -> Dict[str, Any]:
         """
-        Fetch live market data from mStock Type B API
+        Get live market data for multiple symbols
         
         Args:
-            symbol: Stock symbol (optional, fetches multiple if not specified)
+            symbols: List of stock symbols (default: NIFTY50, BANKNIFTY, FINNIFTY)
             
         Returns:
-            Dictionary containing live market data
+            Dictionary with symbol data and quotes
         """
-        try:
-            # Try multiple possible endpoints
-            endpoints = [
-                f"{self.base_url}/v1/market/live",
-                f"{self.base_url}/api/market/live",
-                f"{self.base_url}/v2/market/data",
-            ]
-            
-            for endpoint in endpoints:
-                try:
-                    params = {}
-                    if symbol:
-                        params['symbol'] = symbol
-                    
-                    response = self.session.get(endpoint, params=params, timeout=10)
-                    
-                    # If endpoint is found and returns data
-                    if response.ok:
-                        data = response.json()
-                        logger.info(f"Successfully fetched live data from {endpoint}")
-                        return {
-                            'success': True,
-                            'data': data,
-                            'status': 'Live data fetched successfully',
-                            'endpoint_used': endpoint
-                        }
-                    elif response.status_code == 404:
-                        # Try next endpoint
-                        logger.debug(f"Endpoint {endpoint} not found (404), trying next...")
-                        continue
-                    else:
-                        logger.debug(f"Endpoint {endpoint} returned {response.status_code}")
-                        continue
-                        
-                except requests.exceptions.Timeout:
-                    logger.debug(f"Timeout on {endpoint}, trying next...")
-                    continue
-                except requests.exceptions.ConnectionError:
-                    logger.debug(f"Connection error on {endpoint}, trying next...")
-                    continue
-                except Exception as e:
-                    logger.debug(f"Error on {endpoint}: {e}, trying next...")
-                    continue
-            
-            # All endpoints failed, return mock data
-            logger.warning("All Type B API endpoints failed; returning mock data")
-            return {
-                'success': True,
-                'used_mock': True,
-                'warning': 'Live API endpoints unreachable - displaying mock data',
-                'data': self._get_mock_data()
-            }
-            
-        except Exception as e:
-            logger.error(f"Unexpected error fetching live data: {str(e)}")
-            return {
-                'success': True,
-                'used_mock': True,
-                'warning': f'Error: {str(e)} - showing mock data',
-                'data': self._get_mock_data()
-            }
-    
-    def get_symbol_quote(self, symbol: str) -> Dict[str, Any]:
-        """
-        Get quote for a specific symbol
+        if symbols is None:
+            symbols = ['NIFTY50', 'BANKNIFTY', 'FINNIFTY']
         
-        Args:
-            symbol: Stock symbol
-            
-        Returns:
-            Quote data for the symbol
-        """
-        try:
-            endpoint = f"{self.base_url}/v1/market/quote/{symbol}"
-            response = self.session.get(endpoint, timeout=10)
-            response.raise_for_status()
-            
-            return {
-                'success': True,
-                'data': response.json()
-            }
-        except Exception as e:
-            logger.error(f"Failed to get quote for {symbol}: {str(e)}")
-            return {
-                'success': True,
-                'used_mock': True,
-                'data': self._get_mock_quote(symbol)
-            }
-    
-    def place_order(self, symbol: str, quantity: int, price: float, order_type: str = 'BUY') -> Dict[str, Any]:
-        """
-        Place an order (for Algo Agent)
+        result = {
+            'success': False,
+            'data': [],
+            'error': None
+        }
         
-        Args:
-            symbol: Stock symbol
-            quantity: Quantity to buy/sell
-            price: Price per share
-            order_type: BUY or SELL
-            
-        Returns:
-            Order placement response
-        """
         try:
-            endpoint = f"{self.base_url}/v1/orders/place"
+            # Try to fetch live quotes from Type M API
+            endpoint = f"{self.base_url}/quotes"
+            headers = self._get_headers()
+            
             payload = {
-                'symbol': symbol,
-                'quantity': quantity,
-                'price': price,
-                'order_type': order_type
+                'mode': 'LTP',  # Last Traded Price
+                'symbols': symbols
             }
             
-            response = self.session.post(endpoint, json=payload, timeout=10)
-            response.raise_for_status()
+            logger.debug(f"Fetching live data from Type M API: {endpoint}")
+            response = self.session.post(endpoint, json=payload, headers=headers, timeout=10)
             
-            return {
-                'success': True,
-                'data': response.json(),
-                'message': f"Order placed successfully for {symbol}"
-            }
-        except Exception as e:
-            logger.error(f"Failed to place order: {str(e)}")
-            return {
-                'success': False,
-                'error': str(e)
-            }
-    
-    def get_account_info(self) -> Dict[str, Any]:
-        """
-        Get mStock account information
+            if response.ok:
+                data = response.json()
+                result['success'] = True
+                result['data'] = data.get('quotes', [])
+                logger.info(f"Successfully fetched live data for {len(result['data'])} symbols")
+                return result
+            else:
+                logger.warning(f"Type M /quotes failed with status {response.status_code}: {response.text}")
+                # Fall back to mock data
+                result['data'] = self._get_mock_quotes(symbols)
+                return result
         
-        Returns:
-            Account info data
-        """
-        try:
-            endpoint = f"{self.base_url}/v1/account/info"
-            response = self.session.get(endpoint, timeout=10)
-            response.raise_for_status()
-            
-            return {
-                'success': True,
-                'data': response.json()
-            }
-        except Exception as e:
-            logger.error(f"Failed to get account info: {str(e)}")
-            return {
-                'success': True,
-                'used_mock': True,
-                'data': self._get_mock_account_info()
-            }
-    
-    @staticmethod
-    def _get_mock_data() -> Dict[str, Any]:
-        """Return mock data for testing"""
-        return {
-            'symbols': [
-                {'symbol': 'NIFTY50', 'price': 23150.25, 'change': 2.5, 'timestamp': 'Live', 'bid': 23145.00, 'ask': 23155.50},
-                {'symbol': 'BANKNIFTY', 'price': 54280.50, 'change': -1.2, 'timestamp': 'Live', 'bid': 54270.00, 'ask': 54290.00},
-                {'symbol': 'FINNIFTY', 'price': 21580.75, 'change': 3.1, 'timestamp': 'Live', 'bid': 21570.00, 'ask': 21590.50}
-            ]
-        }
-    
-    @staticmethod
-    def _get_mock_quote(symbol: str) -> Dict[str, Any]:
-        """Return mock quote for a symbol"""
-        return {
-            'symbol': symbol,
-            'price': 150.00,
-            'bid': 149.95,
-            'ask': 150.05,
-            'timestamp': 'Live'
-        }
-    
-    @staticmethod
-    def _get_mock_account_info() -> Dict[str, Any]:
-        """Return mock account info"""
-        return {
-            'account_id': 'default',
-            'balance': 1000000.00,
-            'buying_power': 2000000.00,
-            'api_type': 'B',
-            'totp_enabled': False
-        }
-        """
-        Initialize MStock API client
-        
-        Args:
-            api_key: API key for Type A API
-            api_type: Type of API (A)
-            totp_enabled: Whether TOTP is enabled (disabled in this case)
-            base_url: Base URL for the mStock API (optional)
-        """
-        self.api_key = api_key
-        self.api_type = api_type
-        self.totp_enabled = totp_enabled
-        self.base_url = base_url or "https://api.mstock.com"
-        self.live_path = live_path or '/v1/market/live'
-        self.api_key_header = api_key_header or 'Authorization'
-        self.api_key_prefix = api_key_prefix or 'Bearer '
-
-        self.session = requests.Session()
-        # Build authorization header according to config
-        auth_value = (self.api_key_prefix or '') + self.api_key
-        headers = {
-            self.api_key_header: auth_value,
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-        }
-        # Remove possible None keys
-        headers = {k: v for k, v in headers.items() if k and v is not None}
-        self.session.headers.update(headers)
-        logger.info(f"MStockAPI initialized with base URL: {self.base_url} and live path: {self.live_path}")
-        
-    def get_live_data(self, symbol: str = None) -> Dict[str, Any]:
-        """
-        Fetch live market data from mStock API
-        
-        Args:
-            symbol: Stock symbol (optional, fetches multiple if not specified)
-            
-        Returns:
-            Dictionary containing live market data
-        """
-        try:
-            # Placeholder endpoint - replace with actual mStock API endpoint
-            endpoint = f"{self.base_url.rstrip('/')}{self.live_path}"
-
-            params = {
-                'type': self.api_type,
-                'totp': str(self.totp_enabled).lower()
-            }
-            
-            if symbol:
-                params['symbol'] = symbol
-                
-            response = self.session.get(endpoint, params=params, timeout=10)
-            # If the endpoint returns non-2xx, capture details for diagnostics
-            if not response.ok:
-                text = None
-                try:
-                    text = response.text
-                except Exception:
-                    text = '<unable to read response text>'
-                logger.error(f"Live data endpoint returned {response.status_code}: {text}")
-                return {
-                    'success': False,
-                    'error': f'{response.status_code} {response.reason}',
-                    'status_code': response.status_code,
-                    'raw': text
-                }
-
-            data = response.json()
-            logger.info(f"Successfully fetched live data for {symbol if symbol else 'all symbols'}")
-            return {
-                'success': True,
-                'data': data,
-                'status': 'Live data fetched successfully'
-            }
-            
         except requests.exceptions.Timeout:
-            logger.error("API request timeout")
-            # Return mock data but indicate it's a fallback
-            return {
-                'success': True,
-                'used_mock': True,
-                'warning': 'API request timeout - showing mock data',
-                'data': self._get_mock_data()
-            }
+            logger.warning("Type M API request timeout, using mock data")
+            result['data'] = self._get_mock_quotes(symbols)
+            return result
         except requests.exceptions.ConnectionError:
-            logger.error("Failed to connect to API")
-            return {
-                'success': True,
-                'used_mock': True,
-                'warning': 'Failed to connect to API - showing mock data',
-                'data': self._get_mock_data()
-            }
-        except requests.exceptions.RequestException as e:
-            logger.error(f"API request failed: {str(e)}")
-            return {
-                'success': True,
-                'used_mock': True,
-                'warning': f'API request failed: {str(e)} - showing mock data',
-                'data': self._get_mock_data()
-            }
+            logger.warning(f"Failed to connect to Type M API at {self.base_url}, using mock data")
+            result['data'] = self._get_mock_quotes(symbols)
+            return result
+        except Exception as e:
+            logger.error(f"Error fetching live data: {str(e)}")
+            result['data'] = self._get_mock_quotes(symbols)
+            return result
     
     def get_symbol_quote(self, symbol: str) -> Dict[str, Any]:
         """
-        Get quote for a specific symbol
+        Get full quote for a single symbol
         
         Args:
-            symbol: Stock symbol
+            symbol: Stock symbol (e.g., 'NIFTY50')
             
         Returns:
-            Quote data for the symbol
+            Quote data dictionary
         """
         try:
-            endpoint = f"{self.base_url}/v1/market/quote/{symbol}"
-            response = self.session.get(endpoint, timeout=10)
-            response.raise_for_status()
+            endpoint = f"{self.base_url}/quote"
+            headers = self._get_headers()
             
-            return {
-                'success': True,
-                'data': response.json()
-            }
+            params = {'symbol': symbol}
+            
+            logger.debug(f"Fetching quote for {symbol} from Type M API")
+            response = self.session.get(endpoint, params=params, headers=headers, timeout=10)
+            
+            if response.ok:
+                data = response.json()
+                logger.info(f"Successfully fetched quote for {symbol}")
+                return data.get('quote', {})
+            else:
+                logger.warning(f"Type M /quote failed for {symbol}: {response.status_code}")
+                return MOCK_MARKET_DATA.get(symbol, {})
+        
         except Exception as e:
-            logger.error(f"Failed to get quote for {symbol}: {str(e)}")
-            return {
-                'success': False,
-                'error': str(e),
-                'data': self._get_mock_quote(symbol)
-            }
+            logger.warning(f"Error fetching quote for {symbol}: {str(e)}")
+            return MOCK_MARKET_DATA.get(symbol, {})
     
-    def place_order(self, symbol: str, quantity: int, price: float, order_type: str = 'BUY') -> Dict[str, Any]:
+    def get_market_depth(self, symbol: str) -> Dict[str, Any]:
         """
-        Place an order (for Algo Agent)
+        Get market depth (bid/ask) for a symbol
         
         Args:
             symbol: Stock symbol
-            quantity: Quantity to buy/sell
-            price: Price per share
-            order_type: BUY or SELL
             
         Returns:
-            Order placement response
+            Market depth data
         """
         try:
-            endpoint = f"{self.base_url}/v1/orders/place"
-            payload = {
-                'symbol': symbol,
-                'quantity': quantity,
-                'price': price,
-                'order_type': order_type,
-                'api_type': self.api_type
-            }
+            endpoint = f"{self.base_url}/depth"
+            headers = self._get_headers()
             
-            response = self.session.post(endpoint, json=payload, timeout=10)
-            response.raise_for_status()
+            params = {'symbol': symbol}
             
-            return {
-                'success': True,
-                'data': response.json(),
-                'message': f"Order placed successfully for {symbol}"
-            }
+            logger.debug(f"Fetching depth for {symbol} from Type M API")
+            response = self.session.get(endpoint, params=params, headers=headers, timeout=10)
+            
+            if response.ok:
+                data = response.json()
+                logger.info(f"Successfully fetched depth for {symbol}")
+                return data.get('depth', {})
+            else:
+                logger.warning(f"Type M /depth failed for {symbol}: {response.status_code}")
+                return {'bids': [], 'asks': []}
+        
         except Exception as e:
-            logger.error(f"Failed to place order: {str(e)}")
-            return {
-                'success': False,
-                'error': str(e)
-            }
+            logger.warning(f"Error fetching depth for {symbol}: {str(e)}")
+            return {'bids': [], 'asks': []}
+    
+    def place_order(self, order_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Place an order (requires Type A API, but making request from here)
+        
+        Args:
+            order_data: Order parameters
+            
+        Returns:
+            Order response
+        """
+        try:
+            # Note: Orders might require Type A API endpoint
+            endpoint = f"{self.base_url}/order/place"
+            headers = self._get_headers()
+            
+            logger.debug(f"Placing order: {order_data}")
+            response = self.session.post(endpoint, json=order_data, headers=headers, timeout=10)
+            
+            if response.ok:
+                return response.json()
+            else:
+                return {'success': False, 'error': response.text}
+        
+        except Exception as e:
+            logger.error(f"Error placing order: {str(e)}")
+            return {'success': False, 'error': str(e)}
     
     def get_account_info(self) -> Dict[str, Any]:
         """
-        Get mStock account information
+        Get account information (requires Type A API)
         
         Returns:
-            Account info data
+            Account info dictionary
         """
         try:
-            endpoint = f"{self.base_url}/v1/account/info"
-            response = self.session.get(endpoint, timeout=10)
-            response.raise_for_status()
+            endpoint = f"{self.base_url}/account/info"
+            headers = self._get_headers()
             
-            return {
-                'success': True,
-                'data': response.json()
-            }
+            logger.debug("Fetching account info")
+            response = self.session.get(endpoint, headers=headers, timeout=10)
+            
+            if response.ok:
+                return response.json()
+            else:
+                return {'success': False, 'error': response.text}
+        
         except Exception as e:
-            logger.error(f"Failed to get account info: {str(e)}")
-            return {
-                'success': False,
-                'error': str(e),
-                'data': self._get_mock_account_info()
-            }
+            logger.error(f"Error fetching account info: {str(e)}")
+            return {'success': False, 'error': str(e)}
     
-    @staticmethod
-    def _get_mock_data() -> Dict[str, Any]:
-        """Return mock data for testing"""
-        return {
-            'symbols': [
-                {'symbol': 'AAPL', 'price': 150.25, 'change': 2.5, 'timestamp': 'Live'},
-                {'symbol': 'GOOGL', 'price': 140.50, 'change': -1.2, 'timestamp': 'Live'},
-                {'symbol': 'MSFT', 'price': 380.75, 'change': 3.1, 'timestamp': 'Live'}
-            ]
-        }
-    
-    @staticmethod
-    def _get_mock_quote(symbol: str) -> Dict[str, Any]:
-        """Return mock quote for a symbol"""
-        return {
-            'symbol': symbol,
-            'price': 150.00,
-            'bid': 149.95,
-            'ask': 150.05,
-            'timestamp': 'Live'
-        }
-    
-    @staticmethod
-    def _get_mock_account_info() -> Dict[str, Any]:
-        """Return mock account info"""
-        return {
-            'account_id': 'default',
-            'balance': 100000.00,
-            'buying_power': 200000.00,
-            'api_type': 'A',
-            'totp_enabled': False
-        }
+    def _get_mock_quotes(self, symbols: List[str]) -> List[Dict[str, Any]]:
+        """
+        Get mock quote data for fallback
+        
+        Args:
+            symbols: List of symbols
+            
+        Returns:
+            List of mock quote dictionaries
+        """
+        return [
+            {**MOCK_MARKET_DATA.get(symbol, {'symbol': symbol}), 'mock': True}
+            for symbol in symbols
+        ]

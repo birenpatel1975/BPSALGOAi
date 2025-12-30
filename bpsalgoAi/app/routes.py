@@ -2,7 +2,12 @@
 Flask Routes and API Endpoints
 """
 from flask import Blueprint, render_template, jsonify, request
-from config import TYPE_A_API_KEY, TYPE_A_API_BASE_URL, TYPE_B_API_KEY, TYPE_B_API_BASE_URL, MSTOCK_ACCOUNT
+from config import (
+    MSTOCK_API_BASE_URL_A,
+    MSTOCK_API_BASE_URL_M,
+    API_KEY,
+    MSTOCK_ACCOUNT
+)
 from app.mstock_auth import MStockAuth
 from app.mstock_api import MStockAPI
 from app.algo_agent import AlgoAgent
@@ -14,12 +19,12 @@ logger = logging.getLogger(__name__)
 main_bp = Blueprint('main', __name__)
 api_bp = Blueprint('api', __name__, url_prefix='/api')
 
-# Initialize Type A auth (for JWT token if needed)
-mstock_auth = MStockAuth(api_key=TYPE_A_API_KEY, base_url=TYPE_A_API_BASE_URL)
+# Initialize Type A auth (JWT token retrieval)
+mstock_auth = MStockAuth(api_key=API_KEY, base_url=MSTOCK_API_BASE_URL_A)
 jwt_token = mstock_auth.get_token()
 
-# Initialize Type B API (for market data) with optional JWT token
-mstock_api = MStockAPI(api_key=TYPE_B_API_KEY or TYPE_A_API_KEY, base_url=TYPE_B_API_BASE_URL, jwt_token=jwt_token)
+# Initialize Type M API (market data) with JWT token
+mstock_api = MStockAPI(base_url=MSTOCK_API_BASE_URL_M, jwt_token=jwt_token, api_key=API_KEY)
 algo_agent = AlgoAgent(mstock_api)
 
 # ==================== Main Routes ====================
@@ -63,8 +68,10 @@ def algo_status():
 @api_bp.route('/market/live', methods=['GET'])
 def get_live_data():
     """Get live market data"""
-    symbol = request.args.get('symbol')
-    data = mstock_api.get_live_data(symbol)
+    symbols = request.args.getlist('symbols')
+    if not symbols:
+        symbols = None
+    data = mstock_api.get_live_data(symbols)
     return jsonify(data)
 
 @api_bp.route('/market/quote/<symbol>', methods=['GET'])
@@ -87,10 +94,10 @@ def get_account_info():
 def get_config():
     """Get API configuration (safe values only)"""
     return jsonify({
-        'type_a_api_configured': bool(TYPE_A_API_KEY),
-        'type_b_api_configured': bool(TYPE_B_API_KEY),
-        'type_a_base_url': TYPE_A_API_BASE_URL,
-        'type_b_base_url': TYPE_B_API_BASE_URL,
+        'type_a_api_configured': bool(API_KEY),
+        'type_m_api_configured': bool(API_KEY),
+        'type_a_base_url': MSTOCK_API_BASE_URL_A,
+        'type_m_base_url': MSTOCK_API_BASE_URL_M,
         'mstock_account': MSTOCK_ACCOUNT,
         'jwt_token_valid': mstock_auth.is_token_valid()
     })
