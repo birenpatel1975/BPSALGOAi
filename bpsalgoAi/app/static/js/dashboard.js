@@ -39,6 +39,8 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Auto-refresh market data every 10 seconds
     setInterval(refreshMarketData, 10000);
+    // Initialize WS if configured
+    initWebSocketIfConfigured();
 });
 
 /**
@@ -321,5 +323,107 @@ function addLog(message, type = 'info') {
     // Keep only last 50 entries
     while (activityLog.children.length > 50) {
         activityLog.removeChild(activityLog.lastChild);
+    }
+}
+
+// --- WebSocket support (connects to backend-provided WS URL) ---
+// WebSocket variables
+let marketSocket = null;
+let reconnectAttempts = 0;
+const MAX_RECONNECT_ATTEMPTS = 6;
+
+// Initialize WS if backend provides a URL & token is valid
+async function initWebSocketIfConfigured() {
+    try {
+        const resp = await fetch(`${API_BASE}/config`, { method: 'GET' });
+        const cfg = await resp.json();
+        const wsUrl = cfg.ws_endpoint || null;
+        const tokenValid = cfg.access_token_valid;
+
+        if (wsUrl && tokenValid) {
+            connectWebSocket(wsUrl);
+        } else {
+            console.warn('WebSocket not initialized: ws_url or token missing/invalid');
+            closeWebSocket();
+        }
+    } catch (err) {
+        console.warn('Error checking websocket config:', err);
+    }
+}
+
+function connectWebSocket(url) {
+    if (!url) return;
+    if (marketSocket && (marketSocket.readyState === WebSocket.OPEN || marketSocket.readyState === WebSocket.CONNECTING)) {
+        console.log('WebSocket already connected or connecting');
+        return;
+    }
+
+    try {
+        console.log('Connecting WebSocket to', url);
+        marketSocket = new WebSocket(url);
+
+        marketSocket.onopen = () => {
+            console.log('WebSocket connected');
+            addLog('WebSocket connected', 'success');
+            reconnectAttempts = 0;
+        };
+
+        marketSocket.onmessage = (evt) => {
+            try {
+                const payload = JSON.parse(evt.data);
+                if (payload && (payload.quotes || payload.data || payload.symbols)) {
+                    if (payload.quotes) {
+                        displayMarketData({ symbols: payload.quotes });
+                    } else if (payload.data) {
+                        displayMarketData({ symbols: payload.data });
+                    } else if (payload.symbols) {
+                        displayMarketData({ symbols: payload.symbols });
+                    }
+                } else {
+                    addLog('WS: ' + JSON.stringify(payload), 'info');
+                }
+            } catch (e) {
+                console.warn('Failed to parse WS message', e);
+            }
+        };
+
+        marketSocket.onerror = (err) => {
+            console.error('WebSocket error', err);
+            addLog('WebSocket error', 'error');
+        };
+
+        marketSocket.onclose = (evt) => {
+            console.warn('WebSocket closed', evt);
+            addLog('WebSocket disconnected', 'warning');
+            attemptReconnect(url);
+        };
+
+    } catch (e) {
+        console.error('Failed to create WebSocket', e);
+        attemptReconnect(url);
+    }
+}
+
+function attemptReconnect(url) {
+    if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+        console.warn('Max WebSocket reconnect attempts reached');
+        addLog('Max WebSocket reconnect attempts reached', 'error');
+        return;
+    }
+
+    const delay = Math.min(30000, 1000 * Math.pow(2, reconnectAttempts));
+    reconnectAttempts += 1;
+    console.log(`Reconnecting WebSocket in ${delay}ms (attempt ${reconnectAttempts})`);
+    setTimeout(() => connectWebSocket(url), delay);
+}
+
+function closeWebSocket() {
+    if (marketSocket) {
+        try {
+            marketSocket.close();
+        } catch (e) {
+            console.warn('Error closing WebSocket', e);
+        }
+        marketSocket = null;
     }
 }
