@@ -4,7 +4,6 @@ Flask Routes and API Endpoints
 from flask import Blueprint, render_template, jsonify, request
 from config import (
     MSTOCK_API_BASE_URL_A,
-    MSTOCK_API_BASE_URL_B,
     API_KEY,
     MSTOCK_ACCOUNT
 )
@@ -85,6 +84,13 @@ def get_quote(symbol):
     quote = mstock_api.get_symbol_quote(symbol)
     return jsonify(quote)
 
+
+@api_bp.route('/market/ws', methods=['GET'])
+def get_market_ws():
+    """Return WebSocket URL for frontend to connect to real-time market data"""
+    ws_url = mstock_api.get_ws_url()
+    return jsonify({'ws_url': ws_url})
+
 # ==================== Account API ====================
 
 @api_bp.route('/account/info', methods=['GET'])
@@ -100,12 +106,11 @@ def get_config():
     """Get API configuration (safe values only)"""
     return jsonify({
         'type_a_api_configured': bool(API_KEY),
-        'type_b_api_configured': bool(API_KEY),
         'type_a_base_url': MSTOCK_API_BASE_URL_A,
-        'type_b_base_url': MSTOCK_API_BASE_URL_B,
         'mstock_account': MSTOCK_ACCOUNT,
         'credentials_present': bool(os.getenv('MSTOCK_USERNAME')) and bool(os.getenv('MSTOCK_PASSWORD')),
-        'access_token_valid': mstock_auth.is_token_valid()
+        'access_token_valid': mstock_auth.is_token_valid(),
+        'ws_endpoint': mstock_api.get_ws_url()
     })
 
 # ==================== Error Handlers ====================

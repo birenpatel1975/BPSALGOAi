@@ -5,6 +5,8 @@ Handles Type A/B API calls with proper authentication headers
 import requests
 import logging
 from typing import Dict, List, Any, Optional
+import urllib.parse
+from config import MSTOCK_WS_ENDPOINT
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +49,23 @@ class MStockAPI:
             headers['Authorization'] = f'token {self.api_key}:{self.auth.access_token}'
         
         return headers
+
+    def get_ws_url(self) -> Optional[str]:
+        """Construct WebSocket URL for real-time market data.
+
+        Returns:
+            Full WebSocket URL with API_KEY and ACCESS_TOKEN query params, or None if not authenticated.
+        """
+        if not self.auth or not self.auth.access_token:
+            logger.warning("Cannot build WebSocket URL: missing access token")
+            return None
+
+        base = MSTOCK_WS_ENDPOINT.rstrip('/')
+        params = {
+            'API_KEY': self.api_key,
+            'ACCESS_TOKEN': self.auth.access_token
+        }
+        return f"{base}?{urllib.parse.urlencode(params)}"
     
     def get_live_data(self, symbols: List[str] = None) -> Dict[str, Any]:
         """

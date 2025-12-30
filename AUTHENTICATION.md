@@ -1,10 +1,9 @@
 # mStock Type A/B API Authentication Setup
 
-This document explains the official mStock Type A/B API authentication flow implemented in bpsalgoAi.
+This document explains the official mStock Type A API authentication flow implemented in bpsalgoAi.
 
 ## Official API Documentation
 - **Type A**: https://tradingapi.mstock.com/docs/v1/typeA/User/
-- **Type B**: https://tradingapi.mstock.com/docs/v1/typeB/User/
 
 ## Authentication Overview
 
@@ -144,7 +143,6 @@ Response should show:
 ```json
 {
   "type_a_api_configured": true,
-  "type_b_api_configured": true,
   "credentials_present": true,
   "access_token_valid": true
 }
@@ -157,17 +155,9 @@ Once authenticated:
 GET http://localhost:5000/api/market/live
 ```
 
-## Type A vs Type B
+## Type A (used by this project)
 
-| Feature | Type A | Type B |
-|---------|--------|--------|
-| Base URL | `/openapi/typea` | `/openapi/typeb` |
-| clientcode/username | ✓ Username | ✓ Clientcode |
-| Use Case | Individual traders | Institutional accounts |
-| Market Data | ✓ Yes | ✓ Yes |
-| Orders | ✓ Yes | ✓ Yes |
-
-Both Type A and Type B support the same endpoints. The application uses **Type A by default**.
+This project uses **Type A** API for authentication, orders and market data. Type B references have been removed — if you need Type B support, the mStock docs are linked above and the flow is similar (clientcode + password → OTP → session token).
 
 ## Important Security Notes
 
@@ -244,5 +234,4 @@ The application includes mock market data fallback:
 ## References
 
 - [mStock Type A API Docs](https://tradingapi.mstock.com/docs/v1/typeA/User/)
-- [mStock Type B API Docs](https://tradingapi.mstock.com/docs/v1/typeB/User/)
 - [Official Trading API Docs](https://tradingapi.mstock.com/)

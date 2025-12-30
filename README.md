@@ -110,7 +110,9 @@ bpsalgoAi/
 ## mStock API Documentation
 
 - **Type A Docs**: https://tradingapi.mstock.com/docs/v1/typeA/User/
-- **Type B Docs**: https://tradingapi.mstock.com/docs/v1/typeB/User/
+ - **Type A Docs**: https://tradingapi.mstock.com/docs/v1/typeA/User/
+ 
+Note: This project uses **Type A** API for authentication and market data. WebSocket endpoint is available at `wss://ws.mstock.trade` and is constructed by the backend as `wss://ws.mstock.trade?API_KEY=<api_key>&ACCESS_TOKEN=<access_token>`.
 - **Official Docs**: https://tradingapi.mstock.com/
 
 ## Technology Stack
