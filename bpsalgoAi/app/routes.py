@@ -2,7 +2,8 @@
 Flask Routes and API Endpoints
 """
 from flask import Blueprint, render_template, jsonify, request
-from config import API_KEY, API_TYPE, MSTOCK_ACCOUNT, TOTP_ENABLED, MSTOCK_API_BASE_URL
+from config import TYPE_A_API_KEY, TYPE_A_API_BASE_URL, TYPE_B_API_KEY, TYPE_B_API_BASE_URL, MSTOCK_ACCOUNT
+from app.mstock_auth import MStockAuth
 from app.mstock_api import MStockAPI
 from app.algo_agent import AlgoAgent
 import logging
@@ -13,8 +14,12 @@ logger = logging.getLogger(__name__)
 main_bp = Blueprint('main', __name__)
 api_bp = Blueprint('api', __name__, url_prefix='/api')
 
-# Global instances
-mstock_api = MStockAPI(api_key=API_KEY, api_type=API_TYPE, totp_enabled=TOTP_ENABLED, base_url=MSTOCK_API_BASE_URL)
+# Initialize Type A auth (for JWT token if needed)
+mstock_auth = MStockAuth(api_key=TYPE_A_API_KEY, base_url=TYPE_A_API_BASE_URL)
+jwt_token = mstock_auth.get_token()
+
+# Initialize Type B API (for market data) with optional JWT token
+mstock_api = MStockAPI(api_key=TYPE_B_API_KEY or TYPE_A_API_KEY, base_url=TYPE_B_API_BASE_URL, jwt_token=jwt_token)
 algo_agent = AlgoAgent(mstock_api)
 
 # ==================== Main Routes ====================
@@ -82,10 +87,12 @@ def get_account_info():
 def get_config():
     """Get API configuration (safe values only)"""
     return jsonify({
-        'api_type': API_TYPE,
+        'type_a_api_configured': bool(TYPE_A_API_KEY),
+        'type_b_api_configured': bool(TYPE_B_API_KEY),
+        'type_a_base_url': TYPE_A_API_BASE_URL,
+        'type_b_base_url': TYPE_B_API_BASE_URL,
         'mstock_account': MSTOCK_ACCOUNT,
-        'totp_enabled': TOTP_ENABLED,
-        'api_key_configured': bool(API_KEY)
+        'jwt_token_valid': mstock_auth.is_token_valid()
     })
 
 # ==================== Error Handlers ====================
