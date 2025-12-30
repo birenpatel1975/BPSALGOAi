@@ -44,28 +44,43 @@ class MStockAPI:
         }
         
         # Add authorization if access token is available
-        if self.auth and self.auth.access_token:
-            # Format: token api_key:access_token (as per official docs)
-            headers['Authorization'] = f'token {self.api_key}:{self.auth.access_token}'
+        if self.auth:
+            token = self.auth.get_token()
+            if token:
+                # Format: token api_key:access_token (as per official docs)
+                headers['Authorization'] = f'token {self.api_key}:{token}'
+                logger.debug(f"Using access token in headers: {token[:20]}...")
         
         return headers
 
     def get_ws_url(self) -> Optional[str]:
-        """Construct WebSocket URL for real-time market data.
+        """
+        Construct WebSocket URL for real-time market data.
+        Enforces OTP authentication before allowing WebSocket connection.
 
         Returns:
             Full WebSocket URL with API_KEY and ACCESS_TOKEN query params, or None if not authenticated.
+        Raises:
+            RuntimeError: If OTP authentication has not been completed successfully.
         """
-        if not self.auth or not self.auth.access_token:
-            logger.warning("Cannot build WebSocket URL: missing access token")
-            return None
+        if not self.auth:
+            logger.warning("Cannot build WebSocket URL: no auth object")
+            raise RuntimeError("OTP authentication required before WebSocket connection (no auth object)")
+
+        # Enforce OTP authentication: must have valid session
+        ws_token = self.auth.get_ws_token()
+        if not ws_token:
+            logger.error("WebSocket token required before WebSocket connection. Please complete OTP flow and ensure WS token is available.")
+            raise RuntimeError("WebSocket token required before WebSocket connection.")
 
         base = MSTOCK_WS_ENDPOINT.rstrip('/')
         params = {
             'API_KEY': self.api_key,
-            'ACCESS_TOKEN': self.auth.access_token
+            'ACCESS_TOKEN': ws_token
         }
-        return f"{base}?{urllib.parse.urlencode(params)}"
+        url = f"{base}?{urllib.parse.urlencode(params)}"
+        logger.info(f"Built WebSocket URL: {url}")
+        return url
     
     def get_live_data(self, symbols: List[str] = None) -> Dict[str, Any]:
         """
@@ -97,15 +112,15 @@ class MStockAPI:
                     f"{self.base_url}/marketquote",
                     f"{self.base_url}/quote",
                 ]
-                
+
                 headers = self._get_headers()
                 payload = {'symbols': symbols}
-                
+
                 for endpoint in endpoints:
                     try:
                         logger.debug(f"Fetching live data from: {endpoint}")
                         response = self.session.post(endpoint, json=payload, headers=headers, timeout=10)
-                        
+
                         if response.ok:
                             data = response.json()
                             if data.get('status') == 'success':
@@ -113,15 +128,26 @@ class MStockAPI:
                                 result['data'] = data.get('data', [])
                                 logger.info(f"Successfully fetched live data from {endpoint}")
                                 return result
+                            else:
+                                # API returned error status
+                                result['error'] = f"API error: {data.get('message', 'Unknown error')} (endpoint: {endpoint})"
+                                logger.warning(result['error'])
+                        else:
+                            # HTTP error
+                            result['error'] = f"HTTP {response.status_code}: {response.text} (endpoint: {endpoint})"
+                            logger.warning(result['error'])
                     except Exception as e:
                         logger.debug(f"Endpoint {endpoint} failed: {e}")
+                        result['error'] = f"Exception for {endpoint}: {str(e)}"
                         continue
-                
+
             except Exception as e:
                 logger.warning(f"Error fetching live data: {str(e)}")
+                result['error'] = f"Exception in get_live_data: {str(e)}"
         else:
             logger.warning("Not authenticated. Access token missing or invalid.")
-        
+            result['error'] = "Not authenticated. Access token missing or invalid."
+
         # Fallback to mock data
         logger.info("Using mock data for market quotes")
         result['data'] = self._get_mock_quotes(symbols)

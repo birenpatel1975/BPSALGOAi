@@ -391,6 +391,14 @@ async function initWebSocketIfConfigured() {
         // Check user preference
         const enabled = wsToggle ? wsToggle.checked : true;
 
+        // Block all WS attempts if not authenticated
+        if (!tokenValid) {
+            addLog('WebSocket blocked: OTP authentication required', 'warning');
+            updateWsStatus('disconnected');
+            closeWebSocket();
+            return;
+        }
+
         if (!enabled) {
             console.log('WebSocket disabled by user preference');
             updateWsStatus('disabled');
@@ -498,6 +506,21 @@ function connectWebSocket(url) {
     }
     try {
         console.log('Connecting WebSocket to', url);
+        // Log URL components for debugging
+        try {
+            const urlObj = new URL(url);
+            console.log('WebSocket URL components:', {
+                protocol: urlObj.protocol,
+                host: urlObj.host,
+                pathname: urlObj.pathname,
+                search: urlObj.search,
+                apiKeyLength: (urlObj.searchParams.get('API_KEY') || '').length,
+                tokenLength: (urlObj.searchParams.get('ACCESS_TOKEN') || '').length
+            });
+        } catch (e) {
+            console.log('Could not parse WS URL as URL object:', e.message);
+        }
+        
         updateWsStatus('connecting');
         marketSocket = new WebSocket(url);
 
@@ -565,13 +588,14 @@ function connectWebSocket(url) {
 
         marketSocket.onerror = (err) => {
             console.error('WebSocket error', err);
-            addLog('WebSocket error', 'error');
+            console.log('WebSocket readyState:', marketSocket.readyState);
+            addLog('WebSocket error (readyState=' + marketSocket.readyState + ')', 'error');
             updateWsStatus('error');
         };
 
         marketSocket.onclose = (evt) => {
-            console.warn('WebSocket closed', evt);
-            addLog('WebSocket disconnected', 'warning');
+            console.warn('WebSocket closed', { code: evt.code, reason: evt.reason, wasClean: evt.wasClean });
+            addLog('WebSocket disconnected (code=' + evt.code + ', reason=' + (evt.reason || 'none') + ')', 'warning');
             stopHeartbeat();
             updateWsStatus('disconnected');
             attemptReconnect(url);

@@ -12,8 +12,48 @@ import os
 
 logger = logging.getLogger(__name__)
 
+
 class MStockAuth:
-    """Handles Type A API authentication and access token management"""
+    """
+    Handles Type A API authentication and access token management
+    """
+
+    def get_ws_token(self) -> Optional[str]:
+        """
+        Fetch the WebSocket token from mStock (Type A).
+        This is NOT the REST JWT, but a short token specifically for WebSocket authentication.
+        Returns:
+            WebSocket token string, or None if failed.
+        """
+        try:
+            endpoint = f"{self.base_url}/session/token"
+            headers = {
+                'X-Mirae-Version': '1',
+                'Content-Type': 'application/x-www-form-urlencoded'
+            }
+            # Use API key and OTP (or request_token if already verified)
+            payload = {
+                'api_key': self.api_key,
+                'request_token': self.request_token or '',
+                'checksum': 'L'
+            }
+            response = self.session.post(endpoint, data=payload, headers=headers, timeout=10)
+            if response.ok:
+                data = response.json()
+                if data.get('status') == 'success':
+                    ws_token = data.get('data', {}).get('access_token', '')
+                    if ws_token and len(ws_token) < 300:
+                        logger.info(f"WS token obtained: {ws_token[:20]}... (truncated)")
+                        return ws_token
+                    else:
+                        logger.error(f"WS token response invalid length: {len(ws_token)}")
+                else:
+                    logger.error(f"WS token fetch failed: {data.get('message', 'Unknown error')}")
+            else:
+                logger.error(f"WS token HTTP error {response.status_code}: {response.text}")
+        except Exception as e:
+            logger.error(f"Error fetching WS token: {e}")
+        return None
     
     def __init__(self, api_key: str, base_url: str, username: Optional[str] = None, password: Optional[str] = None):
         """
@@ -109,12 +149,13 @@ class MStockAuth:
             
             if response.ok:
                 data = response.json()
+                logger.debug(f"Step 2 Response: {data}")
                 if data.get('status') == 'success':
                     self.access_token = data.get('data', {}).get('access_token', '')
                     self.refresh_token = data.get('data', {}).get('refresh_token', '')
                     
                     if self.access_token:
-                        logger.info(f"Step 2 Success: Access token obtained")
+                        logger.info(f"Step 2 Success: Access token obtained. Token: {self.access_token[:20]}... (truncated)")
                         self.token_expires_at = datetime.now() + timedelta(hours=24)
                         return True
                     else:

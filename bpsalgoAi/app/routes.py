@@ -161,14 +161,19 @@ def get_watchlist():
 @api_bp.route('/config', methods=['GET'])
 def get_config():
     """Get API configuration (safe values only)"""
-    return jsonify({
-        'type_a_api_configured': bool(API_KEY),
-        'type_a_base_url': MSTOCK_API_BASE_URL_A,
-        'mstock_account': MSTOCK_ACCOUNT,
-        'credentials_present': bool(os.getenv('MSTOCK_USERNAME')) and bool(os.getenv('MSTOCK_PASSWORD')),
-        'access_token_valid': mstock_auth.is_token_valid(),
-        'ws_endpoint': mstock_api.get_ws_url()
-    })
+    try:
+        config = {
+            'type_a_api_configured': bool(API_KEY),
+            'type_a_base_url': MSTOCK_API_BASE_URL_A,
+            'mstock_account': MSTOCK_ACCOUNT,
+            'credentials_present': bool(os.getenv('MSTOCK_USERNAME')) and bool(os.getenv('MSTOCK_PASSWORD')),
+            'access_token_valid': mstock_auth.is_token_valid(),
+            'ws_endpoint': mstock_api.get_ws_url()
+        }
+        return jsonify(config)
+    except Exception as e:
+        logger.error(f"/api/config error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e), 'config': None}), 500
 
 # ==================== Error Handlers ====================
 
