@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 class MStockAPI:
     """Class to handle mStock Type A API requests"""
     
-    def __init__(self, api_key: str, api_type: str = 'A', totp_enabled: bool = False, base_url: str = None):
+    def __init__(self, api_key: str, api_type: str = 'A', totp_enabled: bool = False, base_url: str = None, live_path: str = None, api_key_header: str = None, api_key_prefix: str = None):
         """
         Initialize MStock API client
         
@@ -26,13 +26,22 @@ class MStockAPI:
         self.api_type = api_type
         self.totp_enabled = totp_enabled
         self.base_url = base_url or "https://api.mstock.com"
+        self.live_path = live_path or '/v1/market/live'
+        self.api_key_header = api_key_header or 'Authorization'
+        self.api_key_prefix = api_key_prefix or 'Bearer '
+
         self.session = requests.Session()
-        self.session.headers.update({
-            'Authorization': f'Bearer {api_key}',
+        # Build authorization header according to config
+        auth_value = (self.api_key_prefix or '') + self.api_key
+        headers = {
+            self.api_key_header: auth_value,
             'Content-Type': 'application/json',
             'Accept': 'application/json'
-        })
-        logger.info(f"MStockAPI initialized with base URL: {self.base_url}")
+        }
+        # Remove possible None keys
+        headers = {k: v for k, v in headers.items() if k and v is not None}
+        self.session.headers.update(headers)
+        logger.info(f"MStockAPI initialized with base URL: {self.base_url} and live path: {self.live_path}")
         
     def get_live_data(self, symbol: str = None) -> Dict[str, Any]:
         """
@@ -46,8 +55,8 @@ class MStockAPI:
         """
         try:
             # Placeholder endpoint - replace with actual mStock API endpoint
-            endpoint = f"{self.base_url}/v1/market/live"
-            
+            endpoint = f"{self.base_url.rstrip('/')}{self.live_path}"
+
             params = {
                 'type': self.api_type,
                 'totp': str(self.totp_enabled).lower()
@@ -57,8 +66,21 @@ class MStockAPI:
                 params['symbol'] = symbol
                 
             response = self.session.get(endpoint, params=params, timeout=10)
-            response.raise_for_status()
-            
+            # If the endpoint returns non-2xx, capture details for diagnostics
+            if not response.ok:
+                text = None
+                try:
+                    text = response.text
+                except Exception:
+                    text = '<unable to read response text>'
+                logger.error(f"Live data endpoint returned {response.status_code}: {text}")
+                return {
+                    'success': False,
+                    'error': f'{response.status_code} {response.reason}',
+                    'status_code': response.status_code,
+                    'raw': text
+                }
+
             data = response.json()
             logger.info(f"Successfully fetched live data for {symbol if symbol else 'all symbols'}")
             return {
@@ -69,23 +91,27 @@ class MStockAPI:
             
         except requests.exceptions.Timeout:
             logger.error("API request timeout")
+            # Return mock data but indicate it's a fallback
             return {
-                'success': False,
-                'error': 'API request timeout',
+                'success': True,
+                'used_mock': True,
+                'warning': 'API request timeout - showing mock data',
                 'data': self._get_mock_data()
             }
         except requests.exceptions.ConnectionError:
             logger.error("Failed to connect to API")
             return {
-                'success': False,
-                'error': 'Failed to connect to API',
+                'success': True,
+                'used_mock': True,
+                'warning': 'Failed to connect to API - showing mock data',
                 'data': self._get_mock_data()
             }
         except requests.exceptions.RequestException as e:
             logger.error(f"API request failed: {str(e)}")
             return {
-                'success': False,
-                'error': str(e),
+                'success': True,
+                'used_mock': True,
+                'warning': f'API request failed: {str(e)} - showing mock data',
                 'data': self._get_mock_data()
             }
     
