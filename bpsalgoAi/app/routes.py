@@ -162,28 +162,48 @@ def get_watchlist():
 def get_config():
     """Get API configuration (safe values only)"""
     try:
+        logger.info(f"API_KEY: {API_KEY}")
+        logger.info(f"MSTOCK_API_BASE_URL_A: {MSTOCK_API_BASE_URL_A}")
+        logger.info(f"MSTOCK_ACCOUNT: {MSTOCK_ACCOUNT}")
+        logger.info(f"MSTOCK_USERNAME: {os.getenv('MSTOCK_USERNAME')}")
+        logger.info(f"MSTOCK_PASSWORD: {os.getenv('MSTOCK_PASSWORD')}")
         config = {
             'type_a_api_configured': bool(API_KEY),
             'type_a_base_url': MSTOCK_API_BASE_URL_A,
             'mstock_account': MSTOCK_ACCOUNT,
             'credentials_present': bool(os.getenv('MSTOCK_USERNAME')) and bool(os.getenv('MSTOCK_PASSWORD')),
             'access_token_valid': mstock_auth.is_token_valid(),
-            'ws_endpoint': mstock_api.get_ws_url()
+            'ws_endpoint': None
         }
+        try:
+            config['ws_endpoint'] = mstock_api.get_ws_url()
+        except Exception as ws_ex:
+            logger.error(f"Error getting ws_endpoint: {ws_ex}")
+            config['ws_endpoint'] = None
         return jsonify(config)
     except Exception as e:
         logger.error(f"/api/config error: {e}", exc_info=True)
         return jsonify({'success': False, 'error': str(e), 'config': None}), 500
+    try:
+        body = request.get_json() or {}
+        otp = body.get('otp') or body.get('request_token')
+        logger.info(f"Received OTP for verification: {otp}")
+        if not otp:
+            logger.error("OTP not provided in request body")
+            return jsonify({'success': False, 'message': 'OTP required'}), 400
 
-# ==================== Error Handlers ====================
-
-@main_bp.errorhandler(404)
-def not_found(error):
-    """Handle 404 errors"""
-    return jsonify({'error': 'Not found'}), 404
-
-@main_bp.errorhandler(500)
-def internal_error(error):
-    """Handle 500 errors"""
-    logger.error(f"Internal error: {str(error)}")
-    return jsonify({'error': 'Internal server error'}), 500
+        ok = mstock_auth.step2_session_token(otp)
+        logger.info(f"OTP verification result: {ok}, access_token_valid: {mstock_auth.is_token_valid()}")
+        ws_endpoint = None
+        try:
+            ws_endpoint = mstock_api.get_ws_url()
+        except Exception as ws_ex:
+            logger.error(f"Error getting ws_endpoint after OTP verify: {ws_ex}")
+        return jsonify({
+            'success': bool(ok),
+            'access_token_valid': mstock_auth.is_token_valid(),
+            'ws_endpoint': ws_endpoint
+        })
+    except Exception as e:
+        logger.error(f"/api/auth/verify error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500

@@ -9,6 +9,7 @@ import os
 
 HERE = os.path.dirname(__file__)
 PKG_PATH = os.path.join(HERE, 'bpsalgoAi')
+
 if PKG_PATH not in sys.path:
     sys.path.insert(0, PKG_PATH)
 

@@ -32,9 +32,11 @@ class MStockAuth:
                 'Content-Type': 'application/x-www-form-urlencoded'
             }
             # Use API key and OTP (or request_token if already verified)
+            # Fallback: if request_token is not set, try using access_token
+            req_token = self.request_token or self.access_token or ''
             payload = {
                 'api_key': self.api_key,
-                'request_token': self.request_token or '',
+                'request_token': req_token,
                 'checksum': 'L'
             }
             response = self.session.post(endpoint, data=payload, headers=headers, timeout=10)
@@ -130,30 +132,25 @@ class MStockAuth:
             if not self.api_key or not otp:
                 logger.error("API key and OTP required for session token")
                 return False
-            
             endpoint = f"{self.base_url}/session/token"
-            
             headers = {
                 'X-Mirae-Version': '1',
                 'Content-Type': 'application/x-www-form-urlencoded'
             }
-            
             payload = {
                 'api_key': self.api_key,
                 'request_token': otp,  # OTP is used as request_token
                 'checksum': 'L'  # Required by API
             }
-            
             logger.debug(f"Step 2: Exchanging OTP for access token at {endpoint}")
             response = self.session.post(endpoint, data=payload, headers=headers, timeout=10)
-            
             if response.ok:
                 data = response.json()
                 logger.debug(f"Step 2 Response: {data}")
                 if data.get('status') == 'success':
                     self.access_token = data.get('data', {}).get('access_token', '')
                     self.refresh_token = data.get('data', {}).get('refresh_token', '')
-                    
+                    self.request_token = otp  # Store OTP for WS token retrieval
                     if self.access_token:
                         logger.info(f"Step 2 Success: Access token obtained. Token: {self.access_token[:20]}... (truncated)")
                         self.token_expires_at = datetime.now() + timedelta(hours=24)
@@ -167,7 +164,6 @@ class MStockAuth:
             else:
                 logger.error(f"Step 2 Failed with status {response.status_code}: {response.text}")
                 return False
-                
         except Exception as e:
             logger.error(f"Step 2 Error: {str(e)}")
             return False
