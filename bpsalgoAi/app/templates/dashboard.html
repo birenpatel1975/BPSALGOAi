@@ -19,8 +19,20 @@
 
         <!-- Main Content -->
         <main class="main-content">
-            <!-- Algo Agent Control Section -->
-            <section class="card algo-section">
+            <!-- Authentication Section (First Step) -->
+            <section class="card auth-section">
+                <h2>Step 1: Account Authentication</h2>
+                <div class="auth-controls">
+                    <label for="otpInput">OTP (received via SMS/Email):</label>
+                    <input id="otpInput" type="text" placeholder="Enter OTP here" maxlength="16" />
+                    <button id="sendOtpBtn" class="btn btn-small">Send OTP</button>
+                    <button id="verifyOtpBtn" class="btn btn-small">Verify OTP</button>
+                    <span id="authStatus" class="auth-status">Auth: unknown</span>
+                </div>
+            </section>
+
+            <!-- Algo Agent Control Section (locked until auth) -->
+            <section class="card algo-section" id="algoSection" style="display:none;">
                 <h2>Algo Agent Control</h2>
                 <div class="algo-controls">
                     <button id="startBtn" class="btn btn-start">
@@ -30,8 +42,6 @@
                         <span class="btn-icon">⏹️</span> Stop Agent
                     </button>
                 </div>
-                
-                <!-- Status Display -->
                 <div class="status-display">
                     <div class="status-item">
                         <span class="status-label">Status:</span>
@@ -48,8 +58,8 @@
                 </div>
             </section>
 
-            <!-- Watchlist Section -->
-            <section class="card watchlist-section">
+            <!-- Watchlist Section (locked until auth) -->
+            <section class="card watchlist-section" id="watchlistSection" style="display:none;">
                 <h2>Watchlist</h2>
                 <button id="refreshWatchlistBtn" class="btn btn-refresh">🔄 Refresh Watchlist</button>
                 <div id="watchlistData" class="watchlist-data">
@@ -58,7 +68,8 @@
             </section>
 
             <!-- Live Market Data Section -->
-            <section class="card market-section">
+            <!-- Live Market Data Section (locked until auth) -->
+            <section class="card market-section" id="marketSection" style="display:none;">
                 <h2>Live Market Data</h2>
                 <div class="market-controls">
                     <button id="refreshDataBtn" class="btn btn-refresh">🔄 Refresh Data</button>
@@ -75,8 +86,8 @@
                 </div>
             </section>
 
-            <!-- Account Information Section -->
-            <section class="card account-section">
+            <!-- Account Information Section (locked until auth) -->
+            <section class="card account-section" id="accountSection" style="display:none;">
                 <h2>Account Information</h2>
                 <button id="refreshAccountBtn" class="btn btn-refresh">🔄 Refresh Account</button>
                 <div id="accountInfo" class="account-info">
@@ -97,13 +108,6 @@
                 <h2>Configuration</h2>
                 <div id="configInfo" class="config-info">
                     <p class="placeholder">Loading configuration...</p>
-                </div>
-                <div class="auth-controls">
-                    <label for="otpInput">OTP (received via SMS/Email):</label>
-                    <input id="otpInput" type="text" placeholder="Enter OTP here" maxlength="16" />
-                    <button id="sendOtpBtn" class="btn btn-small">Send OTP</button>
-                    <button id="verifyOtpBtn" class="btn btn-small">Verify OTP</button>
-                    <span id="authStatus" class="auth-status">Auth: unknown</span>
                 </div>
             </section>
         </main>

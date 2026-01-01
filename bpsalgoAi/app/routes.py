@@ -88,9 +88,8 @@ def get_quote(symbol):
 @api_bp.route('/market/ws', methods=['GET'])
 def get_market_ws():
     """Return WebSocket URL for frontend to connect to real-time market data"""
-    ws_url = mstock_api.get_ws_url()
-    # Return under key `ws_endpoint` for frontend compatibility
-    return jsonify({'ws_endpoint': ws_url})
+    # WebSocket endpoint is not supported in REST API flow.
+    return jsonify({'error': 'WebSocket endpoint is not supported in REST API flow. Please refer to mStock WebSocket documentation.'})
 
 
 @api_bp.route('/auth/refresh', methods=['POST'])
@@ -100,8 +99,7 @@ def refresh_auth():
         success = mstock_auth.refresh_session()
         return jsonify({
             'success': bool(success),
-            'access_token_valid': mstock_auth.is_token_valid(),
-            'ws_endpoint': mstock_api.get_ws_url()
+            'access_token_valid': mstock_auth.is_token_valid()
         })
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -114,7 +112,8 @@ def auth_start():
         sent = mstock_auth.step1_login()
         if sent:
             return jsonify({'success': True, 'message': 'OTP sent. Check SMS/Email.'})
-        return jsonify({'success': False, 'message': 'Failed to send OTP. Check credentials or logs.'}), 400
+        # Add backend error details for debugging
+        return jsonify({'success': False, 'message': 'Failed to send OTP. Check credentials or logs.', 'error': getattr(mstock_auth, 'last_error', None)}), 400
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
@@ -129,10 +128,11 @@ def auth_verify():
             return jsonify({'success': False, 'message': 'OTP required'}), 400
 
         ok = mstock_auth.step2_session_token(otp)
+        # Add backend error details for debugging
         return jsonify({
             'success': bool(ok),
             'access_token_valid': mstock_auth.is_token_valid(),
-            'ws_endpoint': mstock_api.get_ws_url()
+            'error': getattr(mstock_auth, 'last_error', None)
         })
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500

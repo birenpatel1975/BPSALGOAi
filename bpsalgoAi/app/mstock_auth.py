@@ -18,44 +18,9 @@ class MStockAuth:
     Handles Type A API authentication and access token management
     """
 
-    def get_ws_token(self) -> Optional[str]:
-        """
-        Fetch the WebSocket token from mStock (Type A).
-        This is NOT the REST JWT, but a short token specifically for WebSocket authentication.
-        Returns:
-            WebSocket token string, or None if failed.
-        """
-        try:
-            endpoint = f"{self.base_url}/session/token"
-            headers = {
-                'X-Mirae-Version': '1',
-                'Content-Type': 'application/x-www-form-urlencoded'
-            }
-            # Use API key and OTP (or request_token if already verified)
-            # Fallback: if request_token is not set, try using access_token
-            req_token = self.request_token or self.access_token or ''
-            payload = {
-                'api_key': self.api_key,
-                'request_token': req_token,
-                'checksum': 'L'
-            }
-            response = self.session.post(endpoint, data=payload, headers=headers, timeout=10)
-            if response.ok:
-                data = response.json()
-                if data.get('status') == 'success':
-                    ws_token = data.get('data', {}).get('access_token', '')
-                    if ws_token and len(ws_token) < 300:
-                        logger.info(f"WS token obtained: {ws_token[:20]}... (truncated)")
-                        return ws_token
-                    else:
-                        logger.error(f"WS token response invalid length: {len(ws_token)}")
-                else:
-                    logger.error(f"WS token fetch failed: {data.get('message', 'Unknown error')}")
-            else:
-                logger.error(f"WS token HTTP error {response.status_code}: {response.text}")
-        except Exception as e:
-            logger.error(f"Error fetching WS token: {e}")
-        return None
+    # WebSocket token is not required for REST API usage as per mStock Type A documentation.
+    # If you need a WebSocket token for a specific use case, implement it as per the official WebSocket documentation.
+    # For REST API, use the access_token obtained from step2_session_token for all authenticated requests.
     
     def __init__(self, api_key: str, base_url: str, username: Optional[str] = None, password: Optional[str] = None):
         """
@@ -86,36 +51,34 @@ class MStockAuth:
         Returns:
             True if OTP was sent, False otherwise
         """
+        self.last_error = None
         try:
             if not self.username or not self.password:
-                logger.error("Username and password required for Type A login")
+                self.last_error = "Username and password required for Type A login"
+                logger.error(self.last_error)
                 return False
-            
             endpoint = f"{self.base_url}/connect/login"
-            
             headers = {
                 'X-Mirae-Version': '1',
                 'Content-Type': 'application/x-www-form-urlencoded'
             }
-            
             payload = {
                 'username': self.username,
                 'password': self.password
             }
-            
             logger.debug(f"Step 1: Sending login request to {endpoint}")
             response = self.session.post(endpoint, data=payload, headers=headers, timeout=10)
-            
             if response.ok:
                 data = response.json()
                 logger.info(f"Step 1 Success: OTP sent. Response: {data.get('message', 'Check SMS/Email')}")
                 return True
             else:
-                logger.error(f"Step 1 Failed with status {response.status_code}: {response.text}")
+                self.last_error = f"Step 1 Failed with status {response.status_code}: {response.text}"
+                logger.error(self.last_error)
                 return False
-                
         except Exception as e:
-            logger.error(f"Step 1 Error: {str(e)}")
+            self.last_error = f"Step 1 Error: {str(e)}"
+            logger.error(self.last_error)
             return False
     
     def step2_session_token(self, otp: str) -> bool:
@@ -128,9 +91,11 @@ class MStockAuth:
         Returns:
             True if access token obtained, False otherwise
         """
+        self.last_error = None
         try:
             if not self.api_key or not otp:
-                logger.error("API key and OTP required for session token")
+                self.last_error = "API key and OTP required for session token"
+                logger.error(self.last_error)
                 return False
             endpoint = f"{self.base_url}/session/token"
             headers = {
@@ -156,16 +121,20 @@ class MStockAuth:
                         self.token_expires_at = datetime.now() + timedelta(hours=24)
                         return True
                     else:
-                        logger.error(f"Step 2 Failed: No access_token in response: {data}")
+                        self.last_error = f"Step 2 Failed: No access_token in response: {data}"
+                        logger.error(self.last_error)
                         return False
                 else:
-                    logger.error(f"Step 2 Failed: {data.get('message', 'Unknown error')}")
+                    self.last_error = f"Step 2 Failed: {data.get('message', 'Unknown error')}"
+                    logger.error(self.last_error)
                     return False
             else:
-                logger.error(f"Step 2 Failed with status {response.status_code}: {response.text}")
+                self.last_error = f"Step 2 Failed with status {response.status_code}: {response.text}"
+                logger.error(self.last_error)
                 return False
         except Exception as e:
-            logger.error(f"Step 2 Error: {str(e)}")
+            self.last_error = f"Step 2 Error: {str(e)}"
+            logger.error(self.last_error)
             return False
     
     def get_token(self) -> Optional[str]:

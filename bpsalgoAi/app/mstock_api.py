@@ -55,32 +55,10 @@ class MStockAPI:
 
     def get_ws_url(self) -> Optional[str]:
         """
-        Construct WebSocket URL for real-time market data.
-        Enforces OTP authentication before allowing WebSocket connection.
-
-        Returns:
-            Full WebSocket URL with API_KEY and ACCESS_TOKEN query params, or None if not authenticated.
-        Raises:
-            RuntimeError: If OTP authentication has not been completed successfully.
+        WebSocket endpoint is not supported in REST API flow. Please refer to mStock WebSocket documentation for real-time data.
         """
-        if not self.auth:
-            logger.warning("Cannot build WebSocket URL: no auth object")
-            raise RuntimeError("OTP authentication required before WebSocket connection (no auth object)")
-
-        # Enforce OTP authentication: must have valid session
-        ws_token = self.auth.get_ws_token()
-        if not ws_token:
-            logger.error("WebSocket token required before WebSocket connection. Please complete OTP flow and ensure WS token is available.")
-            raise RuntimeError("WebSocket token required before WebSocket connection.")
-
-        base = MSTOCK_WS_ENDPOINT.rstrip('/')
-        params = {
-            'API_KEY': self.api_key,
-            'ACCESS_TOKEN': ws_token
-        }
-        url = f"{base}?{urllib.parse.urlencode(params)}"
-        logger.info(f"Built WebSocket URL: {url}")
-        return url
+        logger.error("WebSocket endpoint is not supported in REST API flow. Please refer to mStock WebSocket documentation.")
+        return None
     
     def get_live_data(self, symbols: List[str] = None) -> Dict[str, Any]:
         """
@@ -105,54 +83,10 @@ class MStockAPI:
         
         # Try to fetch from API if authenticated
         if self.auth and self.auth.is_token_valid():
-            try:
-                # Try multiple possible endpoints for market quotes
-                endpoints = [
-                    f"{self.base_url}/market/quotes",
-                    f"{self.base_url}/marketquote",
-                    f"{self.base_url}/quote",
-                ]
-
-                headers = self._get_headers()
-                payload = {'symbols': symbols}
-
-                for endpoint in endpoints:
-                    try:
-                        logger.debug(f"Fetching live data from: {endpoint}")
-                        response = self.session.post(endpoint, json=payload, headers=headers, timeout=10)
-
-                        if response.ok:
-                            data = response.json()
-                            if data.get('status') == 'success':
-                                result['success'] = True
-                                result['data'] = data.get('data', [])
-                                logger.info(f"Successfully fetched live data from {endpoint}")
-                                return result
-                            else:
-                                # API returned error status
-                                result['error'] = f"API error: {data.get('message', 'Unknown error')} (endpoint: {endpoint})"
-                                logger.warning(result['error'])
-                        else:
-                            # HTTP error
-                            result['error'] = f"HTTP {response.status_code}: {response.text} (endpoint: {endpoint})"
-                            logger.warning(result['error'])
-                    except Exception as e:
-                        logger.debug(f"Endpoint {endpoint} failed: {e}")
-                        result['error'] = f"Exception for {endpoint}: {str(e)}"
-                        continue
-
-            except Exception as e:
-                logger.warning(f"Error fetching live data: {str(e)}")
-                result['error'] = f"Exception in get_live_data: {str(e)}"
-        else:
-            logger.warning("Not authenticated. Access token missing or invalid.")
-            result['error'] = "Not authenticated. Access token missing or invalid."
-
-        # Fallback to mock data
-        logger.info("Using mock data for market quotes")
-        result['data'] = self._get_mock_quotes(symbols)
-        result['mock'] = True
-        return result
+            # No valid market data endpoint documented for mStock Type A REST API.
+            logger.error("No valid market data endpoint documented for mStock Type A REST API. Please update the endpoint as per official documentation.")
+            result['error'] = "No valid market data endpoint documented for mStock Type A REST API. Please update the endpoint as per official documentation."
+            return result
     
     def get_symbol_quote(self, symbol: str) -> Dict[str, Any]:
         """
@@ -169,25 +103,12 @@ class MStockAPI:
                 logger.warning(f"Cannot fetch quote for {symbol}: not authenticated")
                 return MOCK_MARKET_DATA.get(symbol, {'symbol': symbol, 'mock': True})
             
-            endpoint = f"{self.base_url}/quote"
-            headers = self._get_headers()
-            params = {'symbol': symbol}
-            
-            logger.debug(f"Fetching quote for {symbol}")
-            response = self.session.get(endpoint, params=params, headers=headers, timeout=10)
-            
-            if response.ok:
-                data = response.json()
-                if data.get('status') == 'success':
-                    logger.info(f"Successfully fetched quote for {symbol}")
-                    return data.get('data', {})
-                
-            logger.warning(f"Quote fetch failed for {symbol}: {response.status_code}")
-            return MOCK_MARKET_DATA.get(symbol, {'symbol': symbol, 'mock': True})
-        
+            # No valid market data endpoint documented for mStock Type A REST API.
+            logger.error("No valid market data endpoint documented for mStock Type A REST API. Please update the endpoint as per official documentation.")
+            return {'symbol': symbol, 'mock': True, 'error': 'No valid market data endpoint documented for mStock Type A REST API.'}
         except Exception as e:
             logger.warning(f"Error fetching quote for {symbol}: {str(e)}")
-            return MOCK_MARKET_DATA.get(symbol, {'symbol': symbol, 'mock': True})
+            return {'symbol': symbol, 'mock': True, 'error': str(e)}
     
     def get_fund_summary(self) -> Dict[str, Any]:
         """

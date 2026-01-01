@@ -33,36 +33,81 @@ const refreshWatchlistBtn = document.getElementById('refreshWatchlistBtn');
 document.addEventListener('DOMContentLoaded', function() {
     console.log('Dashboard initialized');
     
-    // Set up event listeners
+    // Hide all sections except auth until authenticated
+    setSectionsLocked(true);
+
+    // Auth controls
+    if (sendOtpBtn) sendOtpBtn.addEventListener('click', sendOtp);
+    if (verifyOtpBtn) verifyOtpBtn.addEventListener('click', verifyOtp);
+
+    // Show initial auth status
+    try {
+        authStatus.textContent = cfg && cfg.access_token_valid ? 'Auth: valid' : 'Auth: not authenticated';
+    } catch (e) {}
+});
+
+function setSectionsLocked(locked) {
+    const sections = [
+        document.getElementById('algoSection'),
+        document.getElementById('watchlistSection'),
+        document.getElementById('marketSection'),
+        document.getElementById('accountSection')
+    ];
+    for (const sec of sections) {
+        if (sec) sec.style.display = locked ? 'none' : '';
+    }
+    // Also disable WS controls if locked
+    if (locked) {
+        if (typeof closeWebSocket === 'function') closeWebSocket();
+        if (typeof updateWsStatus === 'function') updateWsStatus('disconnected');
+    }
+}
+
+// After successful OTP verification, unlock all sections and auto-connect WS
+async function verifyOtp() {
+    const otp = otpInput.value.trim();
+    if (!otp) {
+        addLog('Please enter the OTP.', 'error');
+        return;
+    }
+    try {
+        verifyOtpBtn.disabled = true;
+        addLog('Verifying OTP...', 'info');
+        const response = await fetch(`${API_BASE}/auth/verify`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ otp })
+        });
+        const data = await response.json();
+        if (data.success && data.access_token_valid) {
+            addLog('✅ OTP verified. Authenticated.', 'success');
+            authStatus.textContent = 'Auth: valid';
+            setSectionsLocked(false);
+            // Now set up event listeners and auto-connect WS
+            setupUnlockedSections();
+        } else {
+            addLog('❌ OTP verification failed.', 'error');
+            authStatus.textContent = 'Auth: not authenticated';
+        }
+    } catch (error) {
+        addLog('❌ Error verifying OTP: ' + error.message, 'error');
+    } finally {
+        verifyOtpBtn.disabled = false;
+    }
+}
+
+function setupUnlockedSections() {
+    // Set up event listeners for unlocked sections
     startBtn.addEventListener('click', startAlgoAgent);
     stopBtn.addEventListener('click', stopAlgoAgent);
     refreshDataBtn.addEventListener('click', refreshMarketData);
     refreshAccountBtn.addEventListener('click', refreshAccountInfo);
-    
-    // Initial loads
-    loadConfig();
-    refreshAccountInfo();
-    updateAgentStatus();
-    
+    if (refreshWatchlistBtn) refreshWatchlistBtn.addEventListener('click', refreshWatchlist);
     // Auto-refresh agent status every 5 seconds
     setInterval(updateAgentStatus, 5000);
-    
     // Auto-refresh market data every 10 seconds
     setInterval(refreshMarketData, 10000);
-    // Restore WS toggle preference
-    try {
-        const pref = localStorage.getItem('ws_enabled');
-        if (pref === null) {
-            // default to enabled if access token present
-            wsToggle.checked = true;
-        } else {
-            wsToggle.checked = pref === 'true';
-        }
-    } catch (e) {
-        console.warn('localStorage not available', e);
-    }
-
-    // Set up WS controls
+    // WS controls
     wsToggle.addEventListener('change', (e) => {
         try { localStorage.setItem('ws_enabled', e.target.checked); } catch (err) {}
         if (e.target.checked) {
@@ -72,21 +117,19 @@ document.addEventListener('DOMContentLoaded', function() {
             updateWsStatus('disabled');
         }
     });
-
     wsConnectBtn.addEventListener('click', () => initWebSocketIfConfigured(true));
     wsDisconnectBtn.addEventListener('click', () => { closeWebSocket(); updateWsStatus('disconnected'); });
-
-    // Initialize WS if configured and toggle enabled
-    initWebSocketIfConfigured();
-    // Auth controls
-    if (sendOtpBtn) sendOtpBtn.addEventListener('click', sendOtp);
-    if (verifyOtpBtn) verifyOtpBtn.addEventListener('click', verifyOtp);
-    // Watchlist controls
-    if (refreshWatchlistBtn) refreshWatchlistBtn.addEventListener('click', refreshWatchlist);
-    // Show initial auth status
+    // Restore WS toggle preference and auto-connect
     try {
-        authStatus.textContent = cfg && cfg.access_token_valid ? 'Auth: valid' : 'Auth: not authenticated';
+        const pref = localStorage.getItem('ws_enabled');
+        wsToggle.checked = pref === null ? true : pref === 'true';
+        if (wsToggle.checked) initWebSocketIfConfigured();
     } catch (e) {}
+    // Initial loads
+    loadConfig();
+    refreshAccountInfo();
+    updateAgentStatus();
+}
 });
 
 /**
