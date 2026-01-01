@@ -83,8 +83,14 @@ async function verifyOtp() {
             addLog('✅ OTP verified. Authenticated.', 'success');
             authStatus.textContent = 'Auth: valid';
             setSectionsLocked(false);
-            // Now set up event listeners and auto-connect WS
             setupUnlockedSections();
+            // Auto-switch to watchlist section
+            const watchlistSection = document.getElementById('watchlistSection');
+            if (watchlistSection) {
+                watchlistSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                watchlistSection.style.boxShadow = '0 0 0 4px #0b8457';
+                setTimeout(() => { watchlistSection.style.boxShadow = ''; }, 2000);
+            }
         } else {
             addLog('❌ OTP verification failed.', 'error');
             authStatus.textContent = 'Auth: not authenticated';
@@ -111,8 +117,13 @@ function setupUnlockedSections() {
     wsToggle.addEventListener('change', (e) => {
         try { localStorage.setItem('ws_enabled', e.target.checked); } catch (err) {}
         if (e.target.checked) {
-            initWebSocketIfConfigured();
+            // Only connect if not already connected
+            if (!marketSocket || marketSocket.readyState !== WebSocket.OPEN) {
+                addLog('Enabling live market feed (WebSocket)...', 'info');
+                initWebSocketIfConfigured();
+            }
         } else {
+            addLog('Disabling live market feed (WebSocket)...', 'info');
             closeWebSocket();
             updateWsStatus('disabled');
         }
@@ -130,7 +141,6 @@ function setupUnlockedSections() {
     refreshAccountInfo();
     updateAgentStatus();
 }
-});
 
 /**
  * Start Algo Agent

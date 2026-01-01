@@ -5,7 +5,8 @@ from flask import Blueprint, render_template, jsonify, request
 from config import (
     MSTOCK_API_BASE_URL_A,
     API_KEY,
-    MSTOCK_ACCOUNT
+    MSTOCK_ACCOUNT,
+    MSTOCK_WS_ENDPOINT
 )
 from app.mstock_auth import MStockAuth
 from app.mstock_api import MStockAPI
@@ -173,13 +174,9 @@ def get_config():
             'mstock_account': MSTOCK_ACCOUNT,
             'credentials_present': bool(os.getenv('MSTOCK_USERNAME')) and bool(os.getenv('MSTOCK_PASSWORD')),
             'access_token_valid': mstock_auth.is_token_valid(),
-            'ws_endpoint': None
+            # Only provide ws_endpoint if authenticated
+            'ws_endpoint': MSTOCK_WS_ENDPOINT if mstock_auth.is_token_valid() else None
         }
-        try:
-            config['ws_endpoint'] = mstock_api.get_ws_url()
-        except Exception as ws_ex:
-            logger.error(f"Error getting ws_endpoint: {ws_ex}")
-            config['ws_endpoint'] = None
         return jsonify(config)
     except Exception as e:
         logger.error(f"/api/config error: {e}", exc_info=True)
