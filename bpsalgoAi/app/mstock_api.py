@@ -11,73 +11,10 @@ from config import MSTOCK_WS_ENDPOINT
 
 logger = logging.getLogger(__name__)
 
-# Mock market data for development/fallback
-MOCK_MARKET_DATA = {
-    'NIFTY50': {'symbol': 'NIFTY50', 'ltp': 23500.00, 'open': 23400.00, 'high': 23650.00, 'low': 23350.00, 'volume': 150000000},
-    'BANKNIFTY': {'symbol': 'BANKNIFTY', 'ltp': 47800.00, 'open': 47600.00, 'high': 48100.00, 'low': 47500.00, 'volume': 80000000},
-    'NIFTYBANK': {'symbol': 'NIFTYBANK', 'ltp': 47800.00, 'open': 47600.00, 'high': 48100.00, 'low': 47500.00, 'volume': 80000000},
-    'FINNIFTY': {'symbol': 'FINNIFTY', 'ltp': 21450.00, 'open': 21350.00, 'high': 21600.00, 'low': 21300.00, 'volume': 50000000},
-}
+
 
 class MStockAPI:
-    # Watchlist tab definitions
-    WATCHLIST_TABS = [
-        'algo_top10',    # Tab 1: Algo Agent's Top 10
-        'auto',          # Tab 2: Auto Sector
-        'finance',       # Tab 3: Finance/Banking
-        'pharma',        # Tab 4: Pharma
-        'metal',         # Tab 5: Metal
-        'power',         # Tab 6: Power
-        'penny'          # Tab 7: Penny Stocks
-    ]
-
-    # Example sector stock lists (replace with real symbols as needed)
-    SECTOR_STOCKS = {
-        'auto': ['MARUTI', 'TATAMOTORS', 'M&M', 'HEROMOTOCO', 'BAJAJ-AUTO'],
-        'finance': ['HDFCBANK', 'ICICIBANK', 'KOTAKBANK', 'AXISBANK', 'SBIN'],
-        'pharma': ['SUNPHARMA', 'CIPLA', 'DIVISLAB', 'DRREDDY', 'AUROPHARMA'],
-        'metal': ['TATASTEEL', 'JSWSTEEL', 'HINDALCO', 'COALINDIA', 'VEDL'],
-        'power': ['NTPC', 'POWERGRID', 'TATAPOWER', 'ADANIGREEN', 'RELIANCE'],
-        'penny': ['SUZLON', 'YESBANK', 'IRFC', 'IDEA', 'PNB']
-    }
-
-    # Tab 1: Algo Agent's Top 10 (dynamic, updated by agent)
-    algo_top10 = []
-
-    def get_watchlist_tab(self, tab: str) -> Dict[str, Any]:
-        """
-        Fetch stocks for a specific watchlist tab.
-        Args:
-            tab: Tab name (algo_top10, auto, finance, pharma, metal, power, penny)
-        Returns:
-            Dictionary with tab stocks
-        """
-        def normalize(items):
-            norm = []
-            for q in items:
-                norm.append({
-                    'symbol': q.get('symbol') or q.get('trading_symbol') or q.get('symbol_name') or q.get('display_name') or 'N/A',
-                    'ltp': q.get('ltp') or q.get('price') or q.get('last_price') or q.get('last') or q.get('LTP'),
-                    'open': q.get('open') or q.get('Open'),
-                    'high': q.get('high') or q.get('High'),
-                    'low': q.get('low') or q.get('Low'),
-                    'volume': q.get('volume') or q.get('Volume'),
-                    'change': q.get('change') or q.get('per_change') or q.get('pchange'),
-                    'pchange': q.get('per_change') or q.get('pchange') or q.get('change'),
-                    'price': q.get('ltp') or q.get('price') or q.get('last_price')
-                })
-            return norm
-
-        if tab == 'algo_top10':
-            # Return Algo Agent's top 10 selections, normalized
-            return {'success': True, 'data': normalize(self.algo_top10), 'tab': tab}
-        elif tab in self.SECTOR_STOCKS:
-            # Return sector stocks; prefer live quotes when authenticated
-            stocks = self.SECTOR_STOCKS[tab]
-            quotes = self._get_live_or_mock_quotes(stocks)
-            return {'success': True, 'data': normalize(quotes), 'tab': tab}
-        else:
-            return {'success': False, 'data': [], 'error': 'Invalid tab', 'tab': tab}
+    # ...existing code...
 
     def update_algo_top10(self, selections: List[Dict[str, Any]]):
         """
@@ -87,38 +24,46 @@ class MStockAPI:
         """
         self.algo_top10 = selections[:10]
 
-    def get_historical_data(self, symbol: str, days: int = 30) -> Dict[str, Any]:
+    def get_historical_data(self, exchange: str, instrument_token: str, interval: str, from_dt: str, to_dt: str) -> Dict[str, Any]:
         """
-        Return mock historical OHLCV data for a symbol for backtesting.
+        Fetch historical OHLCV data for an instrument from mStock API.
         Args:
-            symbol: Stock symbol
-            days: Number of days to return
+            exchange: Exchange segment (NSE, NFO, BSE, BFO)
+            instrument_token: Instrument token
+            interval: Interval frame (minute, day, etc.)
+            from_dt: Start datetime (YYYY-MM-DD+HH:MM:SS)
+            to_dt: End datetime (YYYY-MM-DD+HH:MM:SS)
         Returns:
-            Dict with 'success' and 'data' (list of dicts with ohlcv)
+            Dict with 'success' and 'data' (list of candles)
         """
-        import datetime
-        base = MOCK_MARKET_DATA.get(symbol, {'ltp': 100.0, 'open': 99.0, 'high': 101.0, 'low': 98.0, 'volume': 1000000})
-        today = datetime.date.today()
-        data = []
-        price = base['ltp']
-        for i in range(days):
-            date = today - datetime.timedelta(days=i)
-            daily_price_change = random.uniform(-2, 2)
-            open_ = round(price + random.uniform(-1, 1), 2)
-            close = round(open_ + daily_price_change, 2)
-            high = round(max(open_, close) + random.uniform(0, 1), 2)
-            low = round(min(open_, close) - random.uniform(0, 1), 2)
-            volume = int(base['volume'] * random.uniform(0.8, 1.2))
-            data.append({
-                'date': date.isoformat(),
-                'open': open_,
-                'high': high,
-                'low': low,
-                'close': close,
-                'volume': volume
-            })
-            price = close
-        return {'success': True, 'data': list(reversed(data)), 'mock': True}
+        endpoint = f"{self.base_url}/instruments/historical/{exchange}/{instrument_token}/{interval}?from={urllib.parse.quote(from_dt)}&to={urllib.parse.quote(to_dt)}"
+        headers = self._get_headers()
+        try:
+            resp = self.session.get(endpoint, headers=headers, timeout=10)
+            if resp.ok:
+                payload = resp.json()
+                if payload.get('status') == 'success' and 'data' in payload and 'candles' in payload['data']:
+                    # Convert API candle format to dicts
+                    candles = payload['data']['candles']
+                    data = []
+                    for c in candles:
+                        # [datetime, open, high, low, close, volume]
+                        data.append({
+                            'date': c[0],
+                            'open': c[1],
+                            'high': c[2],
+                            'low': c[3],
+                            'close': c[4],
+                            'volume': c[5]
+                        })
+                    return {'success': True, 'data': data, 'mock': False}
+                else:
+                    return {'success': False, 'error': payload.get('message', 'No data'), 'data': []}
+            else:
+                return {'success': False, 'error': resp.text, 'data': []}
+        except Exception as e:
+            logger.error(f"Error fetching historical data: {e}")
+            return {'success': False, 'error': str(e), 'data': []}
 
     def __init__(self, base_url: str, api_key: str, auth=None):
         """
@@ -160,59 +105,40 @@ class MStockAPI:
         logger.error("WebSocket endpoint is not supported in REST API flow. Please refer to mStock WebSocket documentation.")
         return None
     
-    def get_live_data(self, symbols: List[str] = None) -> Dict[str, Any]:
+    def get_live_data(self, symbols: List[str]) -> Dict[str, Any]:
         """
-        Get live market data for multiple symbols
-        Uses Market Quotes and Instruments API endpoint
-        Returns mock data if real endpoint is not available or not authenticated.
+        Get live market data for multiple symbols using mStock market fetch endpoints.
+        Args:
+            symbols: List of tradingsymbols (e.g., ['NIFTY50', 'BANKNIFTY', 'GIFTNIFTY', ...])
+        Returns:
+            Dict with 'success' and 'data' (list of quote dicts)
         """
-        if symbols is None:
-            symbols = ['NIFTY50', 'NIFTYBANK', 'FINNIFTY']
-
-        # Try real API first if authenticated
-        if self.auth and self.auth.is_token_valid():
-            headers = self._get_headers()
-            quotes = []
-            for sym in symbols:
-                try:
-                    endpoint = f"{self.base_url}/market/quote/{urllib.parse.quote(sym)}"
-                    resp = self.session.get(endpoint, headers=headers, timeout=8)
-                    if resp.ok:
-                        payload = resp.json()
-                        # Type A typically returns {'status':'success','data':{...}}
-                        row = payload.get('data') or payload
-                        if row:
-                            row['symbol'] = row.get('symbol') or sym
-                            quotes.append(row)
-                            continue
-                except Exception as e:
-                    logger.debug(f"Quote fetch failed for {sym}: {e}")
-                # fallback per symbol mock if this one fails
-                quotes.append({**MOCK_MARKET_DATA.get(sym, {'symbol': sym}), 'mock': True})
-
-            # Normalize to expected shape
-            norm = []
-            for q in quotes:
-                norm.append({
-                    'symbol': q.get('symbol') or q.get('trading_symbol') or q.get('symbol_name') or q.get('display_name') or 'N/A',
-                    'ltp': q.get('ltp') or q.get('price') or q.get('last_price') or q.get('last') or q.get('LTP'),
-                    'open': q.get('open') or q.get('Open'),
-                    'high': q.get('high') or q.get('High'),
-                    'low': q.get('low') or q.get('Low'),
-                    'volume': q.get('volume') or q.get('Volume'),
-                    'change': q.get('change') or q.get('per_change') or q.get('pchange'),
-                    'pchange': q.get('per_change') or q.get('pchange') or q.get('change'),
-                    'price': q.get('ltp') or q.get('price') or q.get('last_price')
-                })
-            return {'success': True, 'data': {'symbols': norm}, 'mock': False}
-
-        # Fallback to mock data when not authenticated
-        data = [MOCK_MARKET_DATA.get(sym, {'symbol': sym, 'ltp': 100.0, 'open': 99.0, 'high': 101.0, 'low': 98.0, 'volume': 1000000}) for sym in symbols]
-        import random
-        for d in data:
-            d['change'] = round(random.uniform(-2, 2), 2)
-            d['price'] = d.get('ltp', 100.0)
-        return {'success': True, 'data': {'symbols': data}, 'mock': True}
+        if not symbols:
+            return {'success': False, 'error': 'No symbols provided', 'data': []}
+        headers = self._get_headers()
+        # Use market OHLC endpoint for batch fetch
+        instruments = [f'NSE:{sym}' for sym in symbols]
+        params = '&'.join([f'i={urllib.parse.quote(i)}' for i in instruments])
+        endpoint = f"{self.base_url}/instruments/quote/ohlc?{params}"
+        try:
+            resp = self.session.get(endpoint, headers=headers, timeout=10)
+            if resp.ok:
+                payload = resp.json()
+                if payload.get('status') == 'success' and 'data' in payload:
+                    # Flatten to list of dicts for UI
+                    data = []
+                    for k, v in payload['data'].items():
+                        v['symbol'] = k.split(':')[1] if ':' in k else k
+                        v['exchange'] = k.split(':')[0] if ':' in k else 'NSE'
+                        data.append(v)
+                    return {'success': True, 'data': {'symbols': data}, 'mock': False}
+                else:
+                    return {'success': False, 'error': payload.get('message', 'No data'), 'data': []}
+            else:
+                return {'success': False, 'error': resp.text, 'data': []}
+        except Exception as e:
+            logger.error(f"Error fetching live data: {e}")
+            return {'success': False, 'error': str(e), 'data': []}
     
     def get_symbol_quote(self, symbol: str) -> Dict[str, Any]:
         """
@@ -233,17 +159,7 @@ class MStockAPI:
             except Exception as e:
                 logger.warning(f"Live quote fetch failed for {symbol}: {e}")
 
-        # Fallback to mock
-        try:
-            d = MOCK_MARKET_DATA.get(symbol, {'symbol': symbol, 'ltp': 100.0, 'open': 99.0, 'high': 101.0, 'low': 98.0, 'volume': 1000000})
-            d['change'] = round(random.uniform(-2, 2), 2)
-            d['price'] = d.get('ltp', 100.0)
-            d['mock'] = True
-            d['success'] = True
-            return d
-        except Exception as e:
-            logger.warning(f"Error fetching quote for {symbol}: {str(e)}")
-            return {'symbol': symbol, 'mock': True, 'error': str(e)}
+
     
     def get_fund_summary(self) -> Dict[str, Any]:
         """
@@ -325,116 +241,32 @@ class MStockAPI:
             Dictionary with watchlist data and symbols
         """
         try:
-            # If authenticated, fetch fresh quotes for indices as a proxy watchlist
-            if self.auth and self.auth.is_token_valid():
-                live = self.get_live_data(list(MOCK_MARKET_DATA.keys()))
-                if live.get('success') and live.get('data'):
-                    symbols = live['data'].get('symbols', [])
-                    return {'success': True, 'data': symbols, 'mock': live.get('mock', False)}
-
-            movers = []
-            for sym, d in MOCK_MARKET_DATA.items():
-                movers.append({
-                    'symbol': sym,
-                    'ltp': d['ltp'],
-                    'open': d['open'],
-                    'high': d['high'],
-                    'low': d['low'],
-                    'volume': d['volume'],
-                    'per_change': round((d['ltp'] - d['open']) / d['open'] * 100, 2)
-                })
-            random.shuffle(movers)
-            return {'success': True, 'data': movers, 'mock': True}
+            # Use a default set of indices as a proxy watchlist
+            default_symbols = ['NIFTY50', 'BANKNIFTY', 'FINNIFTY', 'GIFTNIFTY', 'SENSEX']
+            live = self.get_live_data(default_symbols)
+            if live.get('success') and live.get('data'):
+                symbols = live['data'].get('symbols', [])
+                return {'success': True, 'data': symbols, 'mock': False}
+            return {'success': False, 'data': [], 'mock': False}
         except Exception as e:
             logger.error(f"Error fetching watchlist: {str(e)}")
             return {'success': False, 'error': str(e), 'data': []}
 
-    def _get_live_or_mock_quotes(self, symbols: List[str]) -> List[Dict[str, Any]]:
-        """Helper: prefer live quotes via get_live_data, else mock fallback."""
-        try:
-            live = self.get_live_data(symbols)
-            if live.get('success') and live.get('data'):
-                return live['data'].get('symbols', [])
-        except Exception:
-            logger.debug("Falling back to mock quotes", exc_info=True)
-        return self._get_mock_quotes(symbols)
+
 
     # --- Option Chain (stub/mock) ---
     def get_option_chain_master(self, exch: str) -> Dict[str, Any]:
         """Return mock option chain master data until real API is wired."""
+        # Only fetch live data for a default set of indices as a proxy option chain master (stub)
         try:
-            data = {
-                'dctExp': {
-                    '1': 1795876200,
-                    '2': 1429972200,
-                },
-                'OPTIDX': [
-                    'BANKNIFTY,26009,2,3,4,5',
-                    'FINNIFTY,26037,2,3,4',
-                    'NIFTY,26000,2,3,4,5',
-                ]
-            }
-            return {'success': True, 'data': data, 'mock': True}
+            default_symbols = ['NIFTY50', 'BANKNIFTY', 'FINNIFTY', 'GIFTNIFTY', 'SENSEX']
+            live = self.get_live_data(default_symbols)
+            if live.get('success') and live.get('data'):
+                symbols = live['data'].get('symbols', [])
+                return {'success': True, 'data': symbols, 'mock': False}
+            return {'success': False, 'data': [], 'mock': False}
         except Exception as e:
             logger.error(f"Error fetching option chain master: {e}")
-            return {'success': False, 'error': str(e), 'data': None}
+            return {'success': False, 'error': str(e), 'mock': False}
 
-    def get_option_chain(self, exch: str, expiry: str, token: str, ltp: float = None) -> Dict[str, Any]:
-        """Return mock option chain data with ITM/ATM/OTM buckets."""
-        try:
-            strikes = []
-            base = float(ltp) if ltp else 23500
-            # Add slight variation by token hash to avoid identical curves
-            base += (abs(hash(token)) % 5) * 10
-            for i in range(-3, 4):
-                strike = base + i * 100
-                strikes.append({
-                    'strike': strike,
-                    'type': 'CALL',
-                    'ltp': round(120 - abs(i) * 10 + random.uniform(-2, 2), 2),
-                    'oi': random.randint(5000, 20000),
-                    'iv': round(12 + abs(i), 2),
-                    'pchange': round(random.uniform(-3, 3), 2)
-                })
-                strikes.append({
-                    'strike': strike,
-                    'type': 'PUT',
-                    'ltp': round(110 - abs(i) * 9 + random.uniform(-2, 2), 2),
-                    'oi': random.randint(5000, 20000),
-                    'iv': round(13 + abs(i), 2),
-                    'pchange': round(random.uniform(-3, 3), 2)
-                })
-            # classify
-            atm = [s for s in strikes if s['strike'] == base]
-            itm = [s for s in strikes if s['strike'] < base][:6]
-            otm = [s for s in strikes if s['strike'] > base][:6]
-            return {
-                'success': True,
-                'data': {
-                    'atm': atm,
-                    'itm': itm,
-                    'otm': otm
-                },
-                'mock': True,
-                'exch': exch,
-                'expiry': expiry,
-                'token': token
-            }
-        except Exception as e:
-            logger.error(f"Error fetching option chain: {e}")
-            return {'success': False, 'error': str(e), 'data': None}
     
-    def _get_mock_quotes(self, symbols: List[str]) -> List[Dict[str, Any]]:
-        """
-        Get mock quote data for fallback
-        
-        Args:
-            symbols: List of symbols
-            
-        Returns:
-            List of mock quote dictionaries
-        """
-        return [
-            {**MOCK_MARKET_DATA.get(symbol, {'symbol': symbol}), 'mock': True}
-            for symbol in symbols
-        ]

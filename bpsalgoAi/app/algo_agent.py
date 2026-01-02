@@ -5,7 +5,7 @@ Handles automated trading algorithm logic
 import threading
 import logging
 from typing import Dict, Any
-from datetime import datetime
+from datetime import datetime, timedelta
 from app.mstock_api import MStockAPI
 
 logger = logging.getLogger(__name__)
@@ -58,33 +58,38 @@ class AlgoAgent:
         }
 
     def _run_backtest(self):
-        """Run Algo Agent in backtest mode using historical data and pick best performer."""
+        """Run Algo Agent in backtest mode using mStock historical data API and pick best performer."""
         import time
-        import random
         self.log_action("Starting backtest using historical data...")
-        # For demo: use NIFTY50, BANKNIFTY, FINNIFTY
-        symbols = ['NIFTY50', 'BANKNIFTY', 'FINNIFTY']
+        # Example: instrument tokens and exchanges for demo
+        instruments = [
+            {'symbol': 'NIFTY50', 'exchange': 'NSE', 'token': '11536'},
+            {'symbol': 'BANKNIFTY', 'exchange': 'NSE', 'token': '99992'},
+            {'symbol': 'FINNIFTY', 'exchange': 'NSE', 'token': '99991'}
+        ]
+        interval = 'day'
+        from_dt = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d+09:15:00')
+        to_dt = datetime.now().strftime('%Y-%m-%d+15:30:00')
         best_symbol = None
         best_return = float('-inf')
         stats = {'trades': 0, 'pnl': 0.0, 'best_symbol': '', 'best_return': 0.0}
-        for symbol in symbols:
-            hist = self.api_client.get_historical_data(symbol, days=30)
+        for inst in instruments:
+            hist = self.api_client.get_historical_data(inst['exchange'], inst['token'], interval, from_dt, to_dt)
             if not hist['success'] or not hist['data']:
                 continue
             prices = [d['close'] for d in hist['data']]
             if len(prices) < 2:
                 continue
             ret = (prices[-1] - prices[0]) / prices[0] * 100
-            self.log_action(f"Backtest: {symbol} return={ret:.2f}%")
+            self.log_action(f"Backtest: {inst['symbol']} return={ret:.2f}%")
             if ret > best_return:
                 best_return = ret
-                best_symbol = symbol
+                best_symbol = inst['symbol']
+                best_hist = hist['data']
         if best_symbol:
             self.log_action(f"Best performer: {best_symbol} ({best_return:.2f}%)")
-            # Simulate trades: buy at start, sell at end
-            hist = self.api_client.get_historical_data(best_symbol, days=30)
-            buy_price = hist['data'][0]['close']
-            sell_price = hist['data'][-1]['close']
+            buy_price = best_hist[0]['close']
+            sell_price = best_hist[-1]['close']
             pnl = sell_price - buy_price
             stats['trades'] = 2
             stats['pnl'] = round(pnl, 2)
@@ -124,7 +129,6 @@ class AlgoAgent:
         import time
 
         scanned_symbols = set()
-        fallback_symbols = ['NIFTY50', 'NIFTYBANK', 'BANKNIFTY', 'FINNIFTY']
 
         def _calc_strike(val):
             try:
@@ -140,16 +144,11 @@ class AlgoAgent:
                 if watchlist_resp.get('success') and watchlist_resp.get('data'):
                     symbols_payload = watchlist_resp['data']
 
-                # If still empty, fall back to mock live data (stay running instead of stopping)
+                # If still empty, wait and retry without exiting the agent
                 if not symbols_payload:
-                    live_data = self.api_client.get_live_data(fallback_symbols)
-                    if live_data.get('success') and 'data' in live_data and isinstance(live_data['data'], dict):
-                        symbols_payload = live_data['data'].get('symbols', [])
-                    if not symbols_payload:
-                        # No data at all; wait and retry without exiting the agent
-                        self.log_action("Live data unavailable; retrying...")
-                        time.sleep(2)
-                        continue
+                    self.log_action("Live data unavailable; retrying...")
+                    time.sleep(2)
+                    continue
 
                 # Build opportunities with a simple scoring from available fields
                 opps = []
@@ -204,19 +203,36 @@ class AlgoAgent:
     
     def _analyze_and_trade(self, market_data: Dict[str, Any]):
         """
-        Analyze market data and execute trades (paper or live)
+        Analyze market data and execute trades (paper or live). Uses intraday, OHLC, and LTP data for deeper analysis.
         Args:
             market_data: Live market data from API
         """
         try:
             # Example: Custom strategy logic (user can expand this)
             if 'symbols' in market_data:
+                top_symbols = [s.get('symbol') for s in market_data['symbols'][:5] if s.get('symbol')]
+                # Fetch OHLC and LTP for top symbols
+                ohlc_resp = self.api_client.get_market_ohlc([f'NSE:{sym}' for sym in top_symbols])
+                ltp_resp = self.api_client.get_market_ltp([f'NSE:{sym}' for sym in top_symbols])
+                if ohlc_resp['success']:
+                    self.log_action(f"OHLC: {ohlc_resp['data']}")
+                if ltp_resp['success']:
+                    self.log_action(f"LTP: {ltp_resp['data']}")
                 for symbol_data in market_data['symbols']:
                     symbol = symbol_data.get('symbol')
                     change = symbol_data.get('change', 0)
                     price = symbol_data.get('price') or symbol_data.get('ltp')
                     # Log research/decision
                     self.log_action(f"Research: {symbol} change={change}, price={price}")
+                    # Fetch intraday chart data for current symbol (example: NSE, token, minute)
+                    exchange = '1'  # 1-NSE
+                    instrument_token = symbol_data.get('token')
+                    interval = 'minute'
+                    if instrument_token:
+                        intraday = self.api_client.get_intraday_chart_data(exchange, instrument_token, interval)
+                        if intraday['success'] and intraday['data']:
+                            last_candle = intraday['data'][-1]
+                            self.log_action(f"Intraday: {symbol} last candle: {last_candle}")
                     # Example rule: if price moved >1%, consider trading
                     if abs(change) > 1.0:
                         trade_type = 'BUY' if change > 0 else 'SELL'
@@ -318,12 +334,9 @@ class AlgoAgent:
         watchlist_resp = self.api_client.get_watchlist()
         items = watchlist_resp.get('data') if watchlist_resp.get('success') else []
 
-        # Fallback to mock live data if watchlist is empty
+        # If watchlist is empty, return empty list (no fallback/mock)
         if not items:
-            symbols = ['NIFTY50', 'BANKNIFTY', 'FINNIFTY']
-            live = self.api_client.get_live_data(symbols)
-            if live.get('success') and 'data' in live and 'symbols' in live['data']:
-                items = live['data']['symbols']
+            return []
 
         normalized = []
         def _calc_strike(val):
