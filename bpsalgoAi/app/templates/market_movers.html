@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Market Movers | BPSAlgoAI</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body style="background:#0b1220;">
+    <div class="container" style="max-width:1400px;">
+        <header class="header" style="margin-bottom:12px;">
+            <div class="header-content">
+                <h1>Market Movers Workspace</h1>
+                <p class="subtitle">Full-screen watchlist, charts, and option chain</p>
+            </div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+                <a href="/" class="btn btn-small">⬅ Back to Dashboard</a>
+                <button id="refreshWatchlistBtn" class="btn btn-refresh">🔄 Refresh Watchlist</button>
+                <label style="display:flex;align-items:center;gap:6px;font-weight:500;">
+                    <input type="checkbox" id="paperTradeToggle" checked style="accent-color:#1e40af;width:18px;height:18px;">
+                    <span id="paperTradeLabel">Paper Trade</span>
+                </label>
+                <label style="display:flex;align-items:center;gap:6px;font-weight:500;">
+                    <input type="checkbox" id="backtestToggle" style="accent-color:#f59e42;width:18px;height:18px;">
+                    <span id="backtestLabel">Backtest</span>
+                </label>
+                <button id="startBtn" class="btn btn-start"><span class="btn-icon">▶️</span> Start Agent</button>
+                <button id="stopBtn" class="btn btn-stop" disabled><span class="btn-icon">⏹️</span> Stop Agent</button>
+            </div>
+        </header>
+
+        <section class="card" style="margin-bottom:14px;">
+            <div class="watchlist-tabs" style="margin-bottom:10px;display:flex;gap:8px;flex-wrap:wrap;">
+                <button class="watchlist-tab" data-tab="algo_top10">Algo Top 10</button>
+                <button class="watchlist-tab" data-tab="auto">Auto Sector</button>
+                <button class="watchlist-tab" data-tab="finance">Finance/Banking</button>
+                <button class="watchlist-tab" data-tab="pharma">Pharma</button>
+                <button class="watchlist-tab" data-tab="metal">Metal</button>
+                <button class="watchlist-tab" data-tab="power">Power</button>
+                <button class="watchlist-tab" data-tab="penny">Penny Stocks</button>
+                <button id="viewAlgoPicksBtn" class="btn btn-small" style="margin-left:auto;">⚡ View Algo Picks</button>
+            </div>
+            <div class="watchlist-layout" style="flex-wrap:nowrap;">
+                <div class="watchlist-left" style="min-width:460px;">
+                    <div id="watchlistTabContent" class="watchlist-data watchlist-table-wrapper" style="max-height:620px;overflow:auto;">
+                        <p class="placeholder">Select a tab to view stocks...</p>
+                    </div>
+                </div>
+                <div class="watchlist-right" style="flex:1;min-width:520px;">
+                    <div id="miniGraphContainer" class="mini-graph-card">
+                        <div class="mini-graph-header">
+                            <div>
+                                <span id="miniGraphTitle" class="mini-graph-title">Select a stock to view mini-graph</span>
+                                <div id="miniGraphPlaceholder" class="mini-graph-placeholder">Choose any row to see its price action.</div>
+                            </div>
+                            <label class="mini-graph-interval">Interval:
+                                <select id="miniGraphInterval">
+                                    <option value="1">1 min</option>
+                                    <option value="5">5 min</option>
+                                    <option value="10">10 min</option>
+                                    <option value="15">15 min</option>
+                                </select>
+                            </label>
+                            <a id="openChartPage" class="btn btn-small" href="#" target="_blank" style="margin-left:8px;">Open Chart Page</a>
+                        </div>
+                        <div class="mini-graph-canvas-wrap">
+                            <canvas id="miniGraph" width="620" height="320"></canvas>
+                        </div>
+                        <div id="optionChainBox" class="option-chain-box">
+                            <div class="option-chain-header">Option Chain Snapshot (ATM/ITM/OTM)</div>
+                            <div id="optionChainContent" class="option-chain-content">
+                                <p class="placeholder" style="padding:12px;">Select a symbol to load option chain.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="card" style="margin-bottom:14px;">
+            <div style="display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start;">
+                <div style="flex:1;min-width:320px;">
+                    <h3>Prioritized Opportunities</h3>
+                    <table id="opportunitiesTable" class="data-table">
+                        <thead><tr><th>Symbol</th><th>Strike</th><th>Price</th><th>Change %</th><th>Score</th></tr></thead>
+                        <tbody><tr><td colspan="5" style="text-align:center; padding:12px;">Waiting for agent...</td></tr></tbody>
+                    </table>
+                </div>
+                <div style="flex:1;min-width:320px;">
+                    <h3>Live Feed</h3>
+                    <div id="liveFeed" style="height:260px; overflow:auto; background:#0f172a; color:#e2e8f0; padding:10px; border-radius:8px; font-size:14px;"></div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="{{ url_for('static', filename='js/chart.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+</body>
+</html>

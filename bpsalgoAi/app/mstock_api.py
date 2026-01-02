@@ -258,50 +258,87 @@ class MStockAPI:
             Dictionary with watchlist data and symbols
         """
         try:
-            if not self.auth or not self.auth.is_token_valid():
-                logger.warning("Cannot fetch watchlist: not authenticated")
-                return {'success': False, 'data': [], 'error': 'Not authenticated'}
-
-            # Use the official Top Gainers/Losers endpoint (POST /losergainer)
-            endpoint = f"{self.base_url}/losergainer"
-            headers = self._get_headers()
-            headers['Content-Type'] = 'application/x-www-form-urlencoded'
-            # Example payload for NSE (Exchange=1, SecurityIdCode=13, segment=1, TypeFlag=G for gainers, L for losers)
-            payload = {
-                'Exchange': '1',
-                'SecurityIdCode': '13',
-                'segment': '1',
-                'TypeFlag': 'G'  # 'G' for gainers, 'L' for losers
-            }
-            response = self.session.post(endpoint, data=payload, headers=headers, timeout=10)
-            logger.info(f"Gainers/Losers raw response: {response.text}")
-            if response.ok:
-                data = response.json()
-                # Try to find the array of stocks in the response
-                watchlist_data = []
-                if isinstance(data, list):
-                    watchlist_data = data
-                elif 'data' in data and isinstance(data['data'], list):
-                    watchlist_data = data['data']
-                elif 'gainers' in data and isinstance(data['gainers'], list):
-                    watchlist_data = data['gainers']
-                elif 'losers' in data and isinstance(data['losers'], list):
-                    watchlist_data = data['losers']
-                else:
-                    # Try to find any list in the response
-                    for k, v in data.items():
-                        if isinstance(v, list):
-                            watchlist_data = v
-                            break
-                if not watchlist_data:
-                    logger.warning(f"No stocks found in gainers/losers response: {data}")
-                return {'success': True, 'data': watchlist_data, 'raw': data}
-            else:
-                logger.warning(f"Gainers/Losers endpoint failed: {response.status_code} {response.text}")
-                return {'success': False, 'data': [], 'error': f"Gainers/Losers endpoint failed: {response.status_code}", 'raw': response.text}
+            movers = []
+            for sym, d in MOCK_MARKET_DATA.items():
+                movers.append({
+                    'symbol': sym,
+                    'ltp': d['ltp'],
+                    'open': d['open'],
+                    'high': d['high'],
+                    'low': d['low'],
+                    'volume': d['volume'],
+                    'per_change': round((d['ltp'] - d['open']) / d['open'] * 100, 2)
+                })
+            random.shuffle(movers)
+            return {'success': True, 'data': movers, 'mock': True}
         except Exception as e:
-            logger.error(f"Error fetching gainers/losers: {str(e)}")
-            return {'success': False, 'data': [], 'error': str(e)}
+            logger.error(f"Error fetching watchlist: {str(e)}")
+            return {'success': False, 'error': str(e), 'data': []}
+
+    # --- Option Chain (stub/mock) ---
+    def get_option_chain_master(self, exch: str) -> Dict[str, Any]:
+        """Return mock option chain master data until real API is wired."""
+        try:
+            data = {
+                'dctExp': {
+                    '1': 1795876200,
+                    '2': 1429972200,
+                },
+                'OPTIDX': [
+                    'BANKNIFTY,26009,2,3,4,5',
+                    'FINNIFTY,26037,2,3,4',
+                    'NIFTY,26000,2,3,4,5',
+                ]
+            }
+            return {'success': True, 'data': data, 'mock': True}
+        except Exception as e:
+            logger.error(f"Error fetching option chain master: {e}")
+            return {'success': False, 'error': str(e), 'data': None}
+
+    def get_option_chain(self, exch: str, expiry: str, token: str, ltp: float = None) -> Dict[str, Any]:
+        """Return mock option chain data with ITM/ATM/OTM buckets."""
+        try:
+            strikes = []
+            base = float(ltp) if ltp else 23500
+            # Add slight variation by token hash to avoid identical curves
+            base += (abs(hash(token)) % 5) * 10
+            for i in range(-3, 4):
+                strike = base + i * 100
+                strikes.append({
+                    'strike': strike,
+                    'type': 'CALL',
+                    'ltp': round(120 - abs(i) * 10 + random.uniform(-2, 2), 2),
+                    'oi': random.randint(5000, 20000),
+                    'iv': round(12 + abs(i), 2),
+                    'pchange': round(random.uniform(-3, 3), 2)
+                })
+                strikes.append({
+                    'strike': strike,
+                    'type': 'PUT',
+                    'ltp': round(110 - abs(i) * 9 + random.uniform(-2, 2), 2),
+                    'oi': random.randint(5000, 20000),
+                    'iv': round(13 + abs(i), 2),
+                    'pchange': round(random.uniform(-3, 3), 2)
+                })
+            # classify
+            atm = [s for s in strikes if s['strike'] == base]
+            itm = [s for s in strikes if s['strike'] < base][:6]
+            otm = [s for s in strikes if s['strike'] > base][:6]
+            return {
+                'success': True,
+                'data': {
+                    'atm': atm,
+                    'itm': itm,
+                    'otm': otm
+                },
+                'mock': True,
+                'exch': exch,
+                'expiry': expiry,
+                'token': token
+            }
+        except Exception as e:
+            logger.error(f"Error fetching option chain: {e}")
+            return {'success': False, 'error': str(e), 'data': None}
     
     def _get_mock_quotes(self, symbols: List[str]) -> List[Dict[str, Any]]:
         """

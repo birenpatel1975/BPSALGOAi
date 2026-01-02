@@ -26,10 +26,15 @@ const sendOtpBtn = document.getElementById('sendOtpBtn');
 const verifyOtpBtn = document.getElementById('verifyOtpBtn');
 const otpInput = document.getElementById('otpInput');
 const authStatus = document.getElementById('authStatus');
-const watchlistData = document.getElementById('watchlistData');
+const watchlistData = document.getElementById('watchlistData') || document.getElementById('watchlistTabContent');
 const refreshWatchlistBtn = document.getElementById('refreshWatchlistBtn');
+const viewAlgoPicksBtn = document.getElementById('viewAlgoPicksBtn');
 const paperTradeToggle = document.getElementById('paperTradeToggle');
 const paperTradeLabel = document.getElementById('paperTradeLabel');
+const summaryStatus = document.getElementById('summaryStatus');
+const summaryTicker = document.getElementById('summaryTicker');
+const summaryAction = document.getElementById('summaryAction');
+const summaryWatchlist = document.getElementById('summaryWatchlist');
 // Add backtest toggle
 const backtestToggle = (() => {
     const existingToggle = document.getElementById('backtestToggle');
@@ -95,21 +100,10 @@ document.addEventListener('DOMContentLoaded', function() {
             });
             stopWatchlistAutoRefresh();
         }
-        function showWatchlistPage() {
-            // Hide all except watchlist
-            mainSections.forEach(sec => {
-                if (!sec) return;
-                if (sec.id === 'watchlistSection') {
-                    sec.style.display = '';
-                } else {
-                    sec.style.display = 'none';
-                }
-            });
-            refreshCurrentWatchlistTab();
-            startWatchlistAutoRefresh();
-        }
         if (navDashboard) navDashboard.addEventListener('click', showDashboardPage);
-        if (navWatchlist) navWatchlist.addEventListener('click', showWatchlistPage);
+        if (navWatchlist) navWatchlist.addEventListener('click', () => {
+            window.open('/market-movers', '_blank');
+        });
     console.log('Dashboard initialized');
     
     // Hide all sections except auth until authenticated
@@ -166,8 +160,8 @@ function setSectionsLocked(locked) {
 
 function setupUnlockedSections() {
     // Set up event listeners for unlocked sections
-    startBtn.addEventListener('click', startAlgoAgent);
-    stopBtn.addEventListener('click', stopAlgoAgent);
+    if (startBtn) startBtn.addEventListener('click', startAlgoAgent);
+    if (stopBtn) stopBtn.addEventListener('click', stopAlgoAgent);
     refreshDataBtn.addEventListener('click', refreshMarketData);
     refreshAccountBtn.addEventListener('click', refreshAccountInfo);
     if (refreshWatchlistBtn) refreshWatchlistBtn.addEventListener('click', refreshWatchlist);
@@ -199,32 +193,47 @@ function setupUnlockedSections() {
     // Auto-refresh market data every 10 seconds
     setInterval(refreshMarketData, 10000);
     // WS controls
-    wsToggle.addEventListener('change', (e) => {
-        try { localStorage.setItem('ws_enabled', e.target.checked); } catch (err) {}
-        if (e.target.checked) {
-            // Only connect if not already connected
-            if (!marketSocket || marketSocket.readyState !== WebSocket.OPEN) {
-                addLog('Enabling live market feed (WebSocket)...', 'info');
-                initWebSocketIfConfigured();
+    if (wsToggle) {
+        wsToggle.addEventListener('change', (e) => {
+            try { localStorage.setItem('ws_enabled', e.target.checked); } catch (err) {}
+            if (e.target.checked) {
+                // Only connect if not already connected
+                if (!marketSocket || marketSocket.readyState !== WebSocket.OPEN) {
+                    addLog('Enabling live market feed (WebSocket)...', 'info');
+                    initWebSocketIfConfigured();
+                }
+            } else {
+                addLog('Disabling live market feed (WebSocket)...', 'info');
+                closeWebSocket();
+                updateWsStatus('disabled');
             }
-        } else {
-            addLog('Disabling live market feed (WebSocket)...', 'info');
-            closeWebSocket();
-            updateWsStatus('disabled');
-        }
-    });
-    wsConnectBtn.addEventListener('click', () => initWebSocketIfConfigured(true));
-    wsDisconnectBtn.addEventListener('click', () => { closeWebSocket(); updateWsStatus('disconnected'); });
+        });
+    }
+    if (wsConnectBtn) wsConnectBtn.addEventListener('click', () => initWebSocketIfConfigured(true));
+    if (wsDisconnectBtn) wsDisconnectBtn.addEventListener('click', () => { closeWebSocket(); updateWsStatus('disconnected'); });
     // Restore WS toggle preference and auto-connect
     try {
-        const pref = localStorage.getItem('ws_enabled');
-        wsToggle.checked = pref === null ? true : pref === 'true';
-        if (wsToggle.checked) initWebSocketIfConfigured();
+        if (wsToggle) {
+            const pref = localStorage.getItem('ws_enabled');
+            wsToggle.checked = pref === null ? true : pref === 'true';
+            if (wsToggle.checked) initWebSocketIfConfigured();
+        }
     } catch (e) {}
     // Initial loads
     loadConfig();
     refreshAccountInfo();
     updateAgentStatus();
+
+    if (viewAlgoPicksBtn) {
+        viewAlgoPicksBtn.addEventListener('click', () => {
+            const oppTable = document.getElementById('opportunitiesTable');
+            if (oppTable) {
+                oppTable.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                oppTable.classList.add('flash-border');
+                setTimeout(() => oppTable.classList.remove('flash-border'), 1600);
+            }
+        });
+    }
 }
 
 /**
@@ -232,6 +241,7 @@ function setupUnlockedSections() {
  */
 async function startAlgoAgent() {
     try {
+        startBtn.disabled = true;
         // Reset agent status for new session (preserve activity log history)
         agentStatus.textContent = 'STARTING...';
         agentStatus.className = 'status-value';
@@ -807,6 +817,8 @@ function displayWatchlist(items) {
         return;
     }
 
+    symbolMeta = {};
+
     // Sort by change ascending (gainers/losers)
     items = items.slice().sort((a, b) => {
         const ca = parseFloat(a.change || a.pchange || 0);
@@ -937,6 +949,16 @@ function fetchWatchlistTab(tab, options = {}) {
                     });
                     html += '</tbody></table>';
                     watchlistTabContent.innerHTML = html;
+                    // Attach click to open chart
+                    watchlistTabContent.querySelectorAll('tr').forEach(tr => {
+                        tr.addEventListener('click', () => {
+                            const sym = tr.children[0] ? tr.children[0].textContent : null;
+                            if (sym) {
+                                selectedSymbolMeta = { symbol: sym, price: tr.children[1] ? tr.children[1].textContent : null };
+                                showMiniGraph(sym);
+                            }
+                        });
+                    });
                 }
             } else {
                 watchlistTabContent.innerHTML = `<p class="placeholder">Error loading tab: ${data.error || 'Unknown error'}</p>`;
@@ -959,14 +981,25 @@ const miniGraphCanvas = document.getElementById('miniGraph');
 const miniGraphTitle = document.getElementById('miniGraphTitle');
 const miniGraphIntervalSelect = document.getElementById('miniGraphInterval');
 const miniGraphPlaceholder = document.getElementById('miniGraphPlaceholder');
+const optionChainContent = document.getElementById('optionChainContent');
+const agentActivityText = document.getElementById('agentActivityText');
+const openChartPage = document.getElementById('openChartPage');
+
+let algoWatchlistFull = [];
+let algoWatchlistShowMore = false;
+let symbolMeta = {};
+let selectedSymbolMeta = null;
 
 function showMiniGraph(symbol) {
     miniGraphSymbol = symbol;
     miniGraphInterval = parseInt(miniGraphIntervalSelect.value);
-    miniGraphTitle.textContent = `Mini-Graph: ${symbol}`;
+    const ltp = selectedSymbolMeta && selectedSymbolMeta.price ? selectedSymbolMeta.price : (selectedSymbolMeta && selectedSymbolMeta.ltp);
+    miniGraphTitle.textContent = `Mini-Graph: ${symbol}${ltp ? ' @ ' + ltp : ''}`;
     if (miniGraphPlaceholder) miniGraphPlaceholder.textContent = '';
     miniGraphContainer.style.display = '';
+    if (openChartPage) openChartPage.href = `/mini-graph?symbol=${encodeURIComponent(symbol)}`;
     fetchMiniGraphData();
+    fetchOptionChain();
 }
 
 function fetchMiniGraphData() {
@@ -1025,6 +1058,32 @@ function renderMiniGraph(data) {
     });
 }
 
+function renderOptionChain(data) {
+    if (!optionChainContent) return;
+    if (!data || !data.data) {
+        optionChainContent.innerHTML = '<p class="placeholder" style="padding:8px;">No option chain data.</p>';
+        return;
+    }
+    const { atm = [], itm = [], otm = [] } = data.data;
+    function pill(list, label) {
+        if (!list || !list.length) return `<div class="option-pill"><strong>${label}</strong>n/a</div>`;
+        return list.map(o => `<div class="option-pill"><strong>${label} ${o.type}</strong>Strike ${o.strike}<br>LTP ${o.ltp} | OI ${o.oi}</div>`).join('');
+    }
+    optionChainContent.innerHTML = `<div class="option-chain-grid">${pill(atm, 'ATM')}${pill(itm, 'ITM')}${pill(otm, 'OTM')}</div>`;
+}
+
+function fetchOptionChain() {
+    if (!miniGraphSymbol) return;
+    const ltp = selectedSymbolMeta && (selectedSymbolMeta.price || selectedSymbolMeta.ltp);
+    const ltpParam = ltp ? `?ltp=${ltp}` : '';
+    fetch(`/api/optionchain/data/OPTIDX/near/${miniGraphSymbol}${ltpParam}`)
+        .then(res => res.json())
+        .then(renderOptionChain)
+        .catch(() => {
+            if (optionChainContent) optionChainContent.innerHTML = '<p class="placeholder" style="padding:8px;">Option chain unavailable.</p>';
+        });
+}
+
 if (miniGraphIntervalSelect) {
     miniGraphIntervalSelect.addEventListener('change', () => {
         miniGraphInterval = parseInt(miniGraphIntervalSelect.value);
@@ -1034,11 +1093,15 @@ if (miniGraphIntervalSelect) {
 
 // --- Watchlist table click handler ---
 function displayAlgoWatchlistTable(stocks) {
+    algoWatchlistFull = stocks || [];
+    const rows = algoWatchlistShowMore ? algoWatchlistFull : algoWatchlistFull.slice(0, 10);
     let html = `<table class="watchlist-table"><thead><tr>
-        <th>Symbol</th><th>LTP</th><th>Change %</th><th>Open</th><th>High</th><th>Low</th><th>Prev Close</th><th>Volume</th>
+        <th>Symbol</th><th>Strike</th><th>LTP</th><th>Change %</th><th>Open</th><th>High</th><th>Low</th><th>Prev Close</th><th>Volume</th>
     </tr></thead><tbody>`;
-    stocks.forEach(stock => {
+    rows.forEach(stock => {
+        symbolMeta[stock.symbol] = stock;
         const ltp = stock.price ?? stock.ltp ?? '-';
+        const strike = stock.strike ?? '-';
         const changeRaw = stock.change_pct ?? stock.change ?? '-';
         const changeNum = isFinite(parseFloat(changeRaw)) ? parseFloat(changeRaw) : null;
         const changeText = changeNum !== null ? `${changeNum.toFixed(2)}%` : (changeRaw ?? '-');
@@ -1050,6 +1113,7 @@ function displayAlgoWatchlistTable(stocks) {
         const volume = stock.volume_change ?? stock.volume ?? '-';
         html += `<tr class="watchlist-row" data-symbol="${stock.symbol}">
             <td>${stock.symbol}</td>
+            <td>${strike}</td>
             <td>${ltp}</td>
             <td style="color:${changeColor};font-weight:600;">${changeText}</td>
             <td>${open}</td>
@@ -1060,16 +1124,29 @@ function displayAlgoWatchlistTable(stocks) {
         </tr>`;
     });
     html += '</tbody></table>';
+    if (algoWatchlistFull.length > 10) {
+        html += `<div class="show-more-row"><button class="show-more-btn" id="toggleAlgoShowMore">${algoWatchlistShowMore ? 'Show Top 10' : 'Show More'}</button></div>`;
+    }
     if (watchlistTabContent) watchlistTabContent.innerHTML = html;
     document.querySelectorAll('.watchlist-row').forEach(row => {
         row.addEventListener('click', function() {
-            showMiniGraph(this.dataset.symbol);
+            const sym = this.dataset.symbol;
+            selectedSymbolMeta = symbolMeta[sym] || null;
+            showMiniGraph(sym);
         });
     });
+    const toggleBtn = document.getElementById('toggleAlgoShowMore');
+    if (toggleBtn) {
+        toggleBtn.addEventListener('click', () => {
+            algoWatchlistShowMore = !algoWatchlistShowMore;
+            displayAlgoWatchlistTable(algoWatchlistFull);
+        });
+    }
 }
 
 // --- Algo Agent Watchlist fetch/refresh ---
 function fetchAlgoWatchlist() {
+    if (!watchlistTabContent) return Promise.resolve();
     if (currentWatchlistTab !== 'algo_top10') return;
     return fetch('/api/algo/watchlist')
         .then(res => res.json())
@@ -1088,9 +1165,10 @@ function fetchAlgoWatchlist() {
 }
 
 // --- Auto-refresh every 10s ---
-setInterval(fetchAlgoWatchlist, 10000);
-// Initial load
-fetchAlgoWatchlist();
+if (watchlistTabContent) {
+    setInterval(fetchAlgoWatchlist, 10000);
+    fetchAlgoWatchlist();
+}
 
 // --- Algo Agent live ticker, opportunities, and feed ---
 const tickerTextEl = document.getElementById('tickerText');
@@ -1113,13 +1191,14 @@ function renderAlgoLivePanels(data) {
                     return `
                         <tr>
                             <td>${o.symbol || '-'}</td>
+                            <td>${o.strike ?? '-'}</td>
                             <td>${o.price ?? '-'}</td>
                             <td>${changeText}</td>
                             <td>${o.score ?? '-'}</td>
                         </tr>`;
                 }).join('');
             } else {
-                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:12px;">No opportunities yet</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:12px;">No opportunities yet</td></tr>';
             }
         }
     }
@@ -1127,6 +1206,27 @@ function renderAlgoLivePanels(data) {
     if (liveFeedEl && data && Array.isArray(data.feed)) {
         liveFeedEl.innerHTML = data.feed.map(line => `<div>${line}</div>`).join('');
         liveFeedEl.scrollTop = liveFeedEl.scrollHeight;
+    }
+
+    if (agentActivityText) {
+        agentActivityText.textContent = data && data.latest_action ? data.latest_action : 'Waiting for signals...';
+    }
+
+    if (summaryStatus && data) summaryStatus.textContent = data.status || '-';
+    if (summaryTicker && data) summaryTicker.textContent = data.ticker || 'Scanning...';
+    if (summaryAction && data) summaryAction.textContent = data.latest_action || '-';
+    if (summaryWatchlist) {
+        const fallbackCount = Array.isArray(data && data.opportunities) ? data.opportunities.length : 0;
+        summaryWatchlist.textContent = Array.isArray(algoWatchlistFull) && algoWatchlistFull.length ? algoWatchlistFull.length : fallbackCount;
+    }
+
+    if (viewAlgoPicksBtn) {
+        const items = Array.isArray(data && data.opportunities) ? data.opportunities : [];
+        if (items.length) {
+            viewAlgoPicksBtn.classList.add('pulse');
+        } else {
+            viewAlgoPicksBtn.classList.remove('pulse');
+        }
     }
 }
 

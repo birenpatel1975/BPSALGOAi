@@ -24,6 +24,28 @@
 
         <!-- Main Content -->
         <main class="main-content">
+            <!-- Post-auth quick summary -->
+            <section class="card summary-section" id="summarySection">
+                <div class="summary-grid">
+                    <div class="summary-card">
+                        <div class="summary-label">Agent Status</div>
+                        <div class="summary-value" id="summaryStatus">-</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="summary-label">Ticker</div>
+                        <div class="summary-value" id="summaryTicker">Waiting...</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="summary-label">Latest Action</div>
+                        <div class="summary-value" id="summaryAction">-</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="summary-label">Watchlist Items</div>
+                        <div class="summary-value" id="summaryWatchlist">0</div>
+                    </div>
+                </div>
+            </section>
+
             <!-- Authentication Section (First Step) -->
             <section class="card auth-section">
                 <h2>Step 1: Account Authentication</h2>
@@ -36,57 +58,11 @@
                 </div>
             </section>
 
-            <!-- Algo Agent Control is now inside Market Movers section -->
-
-            <!-- Watchlist Section (locked until auth) -->
+            <!-- Market Movers CTA instead of cramped embedded layout -->
             <section class="card watchlist-section" id="watchlistSection" style="display:none;">
-                <h2>Watchlist</h2>
-                <div class="watchlist-tabs" style="margin-bottom:12px;display:flex;gap:8px;">
-                    <button class="watchlist-tab" data-tab="algo_top10">Algo Top 10</button>
-                    <button class="watchlist-tab" data-tab="auto">Auto Sector</button>
-                    <button class="watchlist-tab" data-tab="finance">Finance/Banking</button>
-                    <button class="watchlist-tab" data-tab="pharma">Pharma</button>
-                    <button class="watchlist-tab" data-tab="metal">Metal</button>
-                    <button class="watchlist-tab" data-tab="power">Power</button>
-                    <button class="watchlist-tab" data-tab="penny">Penny Stocks</button>
-                </div>
-                <div style="display:flex;align-items:center;gap:16px;margin-bottom:10px;">
-                    <button id="refreshWatchlistBtn" class="btn btn-refresh">🔄 Refresh Watchlist</button>
-                    <label style="display: flex; align-items: center; gap: 6px; font-weight: 500;">
-                        <input type="checkbox" id="paperTradeToggle" checked style="accent-color: #1e40af; width: 18px; height: 18px;">
-                        <span id="paperTradeLabel">Paper Trade</span>
-                    </label>
-                    <button id="startBtn" class="btn btn-start"><span class="btn-icon">▶️</span> Start Agent</button>
-                    <button id="stopBtn" class="btn btn-stop" disabled><span class="btn-icon">⏹️</span> Stop Agent</button>
-                </div>
-                <div class="watchlist-layout">
-                    <div class="watchlist-left">
-                        <div id="watchlistTabContent" class="watchlist-data watchlist-table-wrapper">
-                            <p class="placeholder">Select a tab to view stocks...</p>
-                        </div>
-                    </div>
-                    <div class="watchlist-right">
-                        <div id="miniGraphContainer" class="mini-graph-card">
-                            <div class="mini-graph-header">
-                                <div>
-                                    <span id="miniGraphTitle" class="mini-graph-title">Select a stock to view mini-graph</span>
-                                    <div id="miniGraphPlaceholder" class="mini-graph-placeholder">Choose any row to see its price action.</div>
-                                </div>
-                                <label class="mini-graph-interval">Interval:
-                                    <select id="miniGraphInterval">
-                                        <option value="1">1 min</option>
-                                        <option value="5">5 min</option>
-                                        <option value="10">10 min</option>
-                                        <option value="15">15 min</option>
-                                    </select>
-                                </label>
-                            </div>
-                            <div class="mini-graph-canvas-wrap">
-                                <canvas id="miniGraph" width="520" height="260"></canvas>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                <h2>Market Movers</h2>
+                <p style="margin:6px 0 12px 0; color:#e2e8f0;">Open the dedicated workspace to view watchlist tabs, mini-graph, and option chain without the cramped layout.</p>
+                <a href="/market-movers" target="_blank" class="btn btn-start">Open Market Movers Workspace</a>
             </section>
 
             <!-- Market Movers Section (now includes Algo Agent Control and live stats) -->
@@ -101,6 +77,10 @@
                 </div>
                 <div id="algoTicker" style="margin:8px 0; padding:10px; background:#0f172a; color:#e2e8f0; border-radius:8px; font-weight:600;">
                     <span>Ticker:</span> <span id="tickerText">Waiting for agent...</span>
+                </div>
+                <div class="agent-activity-ticket">
+                    <div class="agent-activity-title">Agent Activity</div>
+                    <div id="agentActivityText" class="agent-activity-text">Waiting for signals...</div>
                 </div>
                 <!-- Algo Agent Control (moved here) -->
                 <div class="algo-controls" style="display: flex; align-items: center; gap: 16px; margin-bottom: 10px;">
@@ -151,8 +131,8 @@
                     <div style="flex:1; min-width:320px;">
                         <h3>Prioritized Opportunities</h3>
                         <table id="opportunitiesTable" class="data-table">
-                            <thead><tr><th>Symbol</th><th>Price</th><th>Change %</th><th>Score</th></tr></thead>
-                            <tbody><tr><td colspan="4" style="text-align:center; padding:12px;">Waiting for agent...</td></tr></tbody>
+                            <thead><tr><th>Symbol</th><th>Strike</th><th>Price</th><th>Change %</th><th>Score</th></tr></thead>
+                            <tbody><tr><td colspan="5" style="text-align:center; padding:12px;">Waiting for agent...</td></tr></tbody>
                         </table>
                     </div>
                     <div style="flex:1; min-width:320px;">

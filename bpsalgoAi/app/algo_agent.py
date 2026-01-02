@@ -125,6 +125,12 @@ class AlgoAgent:
         scanned_symbols = set()
         fallback_symbols = ['NIFTY50', 'BANKNIFTY', 'FINNIFTY']
 
+        def _calc_strike(val):
+            try:
+                return round(float(val) / 50.0) * 50
+            except Exception:
+                return None
+
         while self.is_running:
             try:
                 # Pull freshest market movers/watchlist from API
@@ -150,17 +156,24 @@ class AlgoAgent:
                     price = item.get('ltp') or item.get('price') or item.get('Price') or item.get('close') or 0
                     change = item.get('per_change') or item.get('pchange') or item.get('change') or 0
                     volume = item.get('volume') or item.get('Volume') or 0
+                    strike = _calc_strike(price)
                     score = (float(change or 0) * 2) + (float(volume or 0) * 0.0001)
                     opps.append({
                         'symbol': sym,
                         'price': price,
                         'change': change,
                         'volume': volume,
-                        'score': round(score, 3)
+                        'score': round(score, 3),
+                        'strike': strike
                     })
 
                 opps = sorted([o for o in opps if o.get('symbol')], key=lambda x: x['score'], reverse=True)
                 self.opportunities = opps[:20]
+                # Publish Top 10 to mStockAPI so watchlist tab can reflect current agent picks
+                try:
+                    self.api_client.update_algo_top10(self.opportunities)
+                except Exception:
+                    logger.debug("Unable to publish algo top10 to api_client", exc_info=True)
 
                 # Update ticker and feed
                 top_ticker = ', '.join([f"{o['symbol']} {o['change']}%" for o in self.opportunities[:5]])
@@ -287,7 +300,8 @@ class AlgoAgent:
             'stats': stats if stats else None,
             'feed': self.get_feed(),
             'opportunities': self.opportunities,
-            'ticker': self.get_ticker()
+            'ticker': self.get_ticker(),
+            'latest_action': self.feed[-1] if self.feed else None
         }
 
     # --- New: Algo Agent Watchlist Info for UI ---
@@ -307,6 +321,12 @@ class AlgoAgent:
                 items = live['data']['symbols']
 
         normalized = []
+        def _calc_strike(val):
+            try:
+                return round(float(val) / 50.0) * 50
+            except Exception:
+                return None
+
         for item in items or []:
             symbol = item.get('symbol') or item.get('symbol_name') or item.get('display_name')
             ltp = item.get('ltp') or item.get('price') or item.get('Price')
@@ -326,6 +346,7 @@ class AlgoAgent:
                 'open': open_,
                 'prev_close': prev_close,
                 'change_pct': change_pct,
+                'strike': _calc_strike(ltp),
             })
 
         # Sort by change descending to emulate “top movers”

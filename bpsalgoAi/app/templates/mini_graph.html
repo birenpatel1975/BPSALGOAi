@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mini Graph</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body style="background:#0f172a; color:#e2e8f0; padding:16px;">
+    <h2 id="graphTitle">Mini-Graph</h2>
+    <div style="margin-bottom:10px; display:flex; gap:10px; align-items:center;">
+        <label>Interval
+            <select id="mgInterval">
+                <option value="1">1 min</option>
+                <option value="5">5 min</option>
+                <option value="10">10 min</option>
+                <option value="15">15 min</option>
+            </select>
+        </label>
+    </div>
+    <canvas id="mgCanvas" width="900" height="360" style="background:#0b1222; border:1px solid #1e293b; border-radius:10px;"></canvas>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        let symbol = params.get('symbol') || 'NIFTY50';
+        const canvas = document.getElementById('mgCanvas');
+        const ctx = canvas.getContext('2d');
+        const intervalSel = document.getElementById('mgInterval');
+        document.getElementById('graphTitle').textContent = 'Mini-Graph: ' + symbol;
+        let chart = null;
+
+        function fetchData() {
+            const interval = intervalSel.value;
+            fetch(`/api/algo/stock_graph/${symbol}?interval=${interval}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success && Array.isArray(data.data)) render(data.data);
+                });
+        }
+
+        function render(data) {
+            if (chart) chart.destroy();
+            const labels = data.map(d => d.time);
+            const prices = data.map(d => d.price);
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels,
+                    datasets: [{ label: symbol, data: prices, borderColor: '#38bdf8', backgroundColor: 'rgba(56,189,248,0.15)' }]
+                },
+                options: { responsive: false }
+            });
+        }
+
+        intervalSel.addEventListener('change', fetchData);
+        fetchData();
+    </script>
+</body>
+</html>

@@ -89,6 +89,15 @@ def dashboard():
     """Main dashboard page"""
     return render_template('dashboard.html')
 
+@main_bp.route('/mini-graph')
+def mini_graph_page():
+    return render_template('mini_graph.html')
+
+@main_bp.route('/market-movers')
+def market_movers_page():
+    """Dedicated full-screen Market Movers workspace."""
+    return render_template('market_movers.html')
+
 @main_bp.route('/health')
 def health_check():
     """Health check endpoint"""
@@ -244,6 +253,28 @@ def get_user_watchlist_tab():
     except Exception as e:
         logger.error(f"Error fetching user watchlist tab: {e}")
         return jsonify({'success': False, 'data': [], 'error': str(e)})
+
+# ==================== Option Chain API (stub) ====================
+
+@api_bp.route('/optionchain/master/<exch>', methods=['GET'])
+def option_chain_master(exch):
+    try:
+        data = mstock_api.get_option_chain_master(exch)
+        return jsonify(data)
+    except Exception as e:
+        logger.error(f"Error fetching option chain master: {e}")
+        return jsonify({'success': False, 'error': str(e), 'data': None}), 500
+
+
+@api_bp.route('/optionchain/data/<exch>/<expiry>/<token>', methods=['GET'])
+def option_chain_data(exch, expiry, token):
+    try:
+        ltp = request.args.get('ltp')
+        data = mstock_api.get_option_chain(exch, expiry, token, ltp=ltp)
+        return jsonify(data)
+    except Exception as e:
+        logger.error(f"Error fetching option chain data: {e}")
+        return jsonify({'success': False, 'error': str(e), 'data': None}), 500
 
 # ==================== Configuration API ====================
 
