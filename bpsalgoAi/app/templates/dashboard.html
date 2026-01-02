@@ -36,32 +36,7 @@
                 </div>
             </section>
 
-            <!-- Algo Agent Control Section (locked until auth) -->
-            <section class="card algo-section" id="algoSection" style="display:none;">
-                <h2>Algo Agent Control</h2>
-                <div class="algo-controls">
-                    <button id="startBtn" class="btn btn-start">
-                        <span class="btn-icon">▶️</span> Start Agent
-                    </button>
-                    <button id="stopBtn" class="btn btn-stop" disabled>
-                        <span class="btn-icon">⏹️</span> Stop Agent
-                    </button>
-                </div>
-                <div class="status-display">
-                    <div class="status-item">
-                        <span class="status-label">Status:</span>
-                        <span id="agentStatus" class="status-value status-stopped">STOPPED</span>
-                    </div>
-                    <div class="status-item">
-                        <span class="status-label">Last Execution:</span>
-                        <span id="lastExecution" class="status-value">-</span>
-                    </div>
-                    <div class="status-item">
-                        <span class="status-label">Total Trades:</span>
-                        <span id="tradeCount" class="status-value">0</span>
-                    </div>
-                </div>
-            </section>
+            <!-- Algo Agent Control is now inside Market Movers section -->
 
             <!-- Watchlist Section (locked until auth) -->
             <section class="card watchlist-section" id="watchlistSection" style="display:none;">
@@ -72,10 +47,47 @@
                 </div>
             </section>
 
-            <!-- Live Market Data Section -->
-            <!-- Live Market Data Section (locked until auth) -->
-            <section class="card market-section" id="marketSection" style="display:none;">
-                <h2>Live Market Data</h2>
+            <!-- Market Movers Section (now includes Algo Agent Control and live stats) -->
+            <section class="card market-section" id="marketSection" style="display:none; position:relative;">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                    <h2>Market Movers</h2>
+                    <div id="liveStats" style="min-width:220px; text-align:right;">
+                        <!-- Live stats will be injected here -->
+                        <span style="font-weight:600;">Live Stats</span>
+                        <div id="liveStatsContent" style="font-size:14px; color:#fff; margin-top:2px;"></div>
+                    </div>
+                </div>
+                <!-- Algo Agent Control (moved here) -->
+                <div class="algo-controls" style="display: flex; align-items: center; gap: 16px; margin-bottom: 10px;">
+                    <button id="startBtn" class="btn btn-start">
+                        <span class="btn-icon">▶️</span> Start Agent
+                    </button>
+                    <button id="stopBtn" class="btn btn-stop" disabled>
+                        <span class="btn-icon">⏹️</span> Stop Agent
+                    </button>
+                    <label style="display: flex; align-items: center; gap: 6px; font-weight: 500;">
+                        <input type="checkbox" id="paperTradeToggle" checked style="accent-color: #1e40af; width: 18px; height: 18px;">
+                        <span id="paperTradeLabel">Paper Trade</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 6px; font-weight: 500;">
+                        <input type="checkbox" id="backtestToggle" style="accent-color: #f59e42; width: 18px; height: 18px;">
+                        <span id="backtestLabel">Backtest</span>
+                    </label>
+                    <div class="status-display" style="display:flex; gap:18px; align-items:center;">
+                        <div class="status-item">
+                            <span class="status-label">Status:</span>
+                            <span id="agentStatus" class="status-value status-stopped">STOPPED</span>
+                        </div>
+                        <div class="status-item">
+                            <span class="status-label">Last Execution:</span>
+                            <span id="lastExecution" class="status-value">-</span>
+                        </div>
+                        <div class="status-item">
+                            <span class="status-label">Total Trades:</span>
+                            <span id="tradeCount" class="status-value">0</span>
+                        </div>
+                    </div>
+                </div>
                 <div class="market-controls">
                     <button id="refreshDataBtn" class="btn btn-refresh">🔄 Refresh Data</button>
                     <label class="ws-toggle">

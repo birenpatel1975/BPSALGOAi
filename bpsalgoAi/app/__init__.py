@@ -4,8 +4,23 @@ from flask_cors import CORS
 def create_app(config_name='DevelopmentConfig'):
     """Application factory"""
     app = Flask(__name__)
-    
-    # Enable CORS
+
+    import logging
+    import os
+
+    # Logging setup
+    LOG_DIR = os.path.join(os.path.dirname(__file__), 'logs')
+    os.makedirs(LOG_DIR, exist_ok=True)
+    LOG_FILE = os.path.join(LOG_DIR, 'app.log')
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler(LOG_FILE),
+            logging.StreamHandler()
+        ]
+    )
     CORS(app)
     
     # Load configuration

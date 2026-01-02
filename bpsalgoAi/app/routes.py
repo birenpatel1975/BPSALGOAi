@@ -52,8 +52,15 @@ def health_check():
 
 @api_bp.route('/algo/start', methods=['POST'])
 def start_algo():
-    """Start the Algo Agent"""
-    result = algo_agent.start()
+    """Start the Algo Agent (accepts trade_mode: 'paper' or 'live' in JSON body)"""
+    trade_mode = None
+    try:
+        if request.is_json:
+            body = request.get_json()
+            trade_mode = body.get('trade_mode')
+    except Exception:
+        trade_mode = None
+    result = algo_agent.start(trade_mode=trade_mode)
     return jsonify(result)
 
 @api_bp.route('/algo/stop', methods=['POST'])
@@ -169,14 +176,8 @@ def get_config():
         logger.info(f"MSTOCK_USERNAME: {os.getenv('MSTOCK_USERNAME')}")
         logger.info(f"MSTOCK_PASSWORD: {os.getenv('MSTOCK_PASSWORD')}")
         config = {
-            'type_a_api_configured': bool(API_KEY),
-            'type_a_base_url': MSTOCK_API_BASE_URL_A,
-            'mstock_account': MSTOCK_ACCOUNT,
-            'credentials_present': bool(os.getenv('MSTOCK_USERNAME')) and bool(os.getenv('MSTOCK_PASSWORD')),
+            'success': True,
             'access_token_valid': mstock_auth.is_token_valid(),
-            'api_key': API_KEY,
-            'access_token': mstock_auth.get_token() if mstock_auth.is_token_valid() else None,
-            # Only provide ws_endpoint if authenticated, and include API_KEY and ACCESS_TOKEN in URL
             'ws_endpoint': None
         }
         if mstock_auth.is_token_valid():

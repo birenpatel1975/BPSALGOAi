@@ -12,11 +12,9 @@ logger = logging.getLogger(__name__)
 
 class AlgoAgent:
     """Automated trading algorithm agent"""
-    
     def __init__(self, api_client: MStockAPI):
         """
         Initialize Algo Agent
-        
         Args:
             api_client: MStockAPI client instance
         """
@@ -27,27 +25,76 @@ class AlgoAgent:
         self.last_execution = None
         self.trade_count = 0
         self.logs = []
+        self.trade_mode = 'paper'  # 'paper' or 'live'
         
-    def start(self) -> Dict[str, Any]:
-        """Start the Algo Agent"""
+    def start(self, trade_mode: str = None) -> Dict[str, Any]:
+        """Start the Algo Agent, optionally setting trade mode ('paper', 'live', or 'backtest')"""
         if self.is_running:
             return {
                 'success': False,
                 'message': 'Algo Agent is already running'
             }
-        
+        if trade_mode in ('paper', 'live', 'backtest'):
+            self.trade_mode = trade_mode
+        else:
+            self.trade_mode = 'paper'
         self.is_running = True
         self.status = 'RUNNING'
-        self.thread = threading.Thread(target=self._run_algorithm, daemon=True)
+        if self.trade_mode == 'backtest':
+            self.thread = threading.Thread(target=self._run_backtest, daemon=True)
+        else:
+            self.thread = threading.Thread(target=self._run_algorithm, daemon=True)
         self.thread.start()
-        
-        self.log_action('Algo Agent started')
-        
+        self.log_action(f"Algo Agent started in {self.trade_mode.upper()} mode")
         return {
             'success': True,
-            'message': 'Algo Agent started successfully',
-            'status': self.status
+            'message': f'Algo Agent started successfully in {self.trade_mode.upper()} mode',
+            'status': self.status,
+            'trade_mode': self.trade_mode
         }
+
+    def _run_backtest(self):
+        """Run Algo Agent in backtest mode using historical data and pick best performer."""
+        import time
+        import random
+        self.log_action("Starting backtest using historical data...")
+        # For demo: use NIFTY50, BANKNIFTY, FINNIFTY
+        symbols = ['NIFTY50', 'BANKNIFTY', 'FINNIFTY']
+        best_symbol = None
+        best_return = float('-inf')
+        stats = {'trades': 0, 'pnl': 0.0, 'best_symbol': '', 'best_return': 0.0}
+        for symbol in symbols:
+            hist = self.api_client.get_historical_data(symbol, days=30)
+            if not hist['success'] or not hist['data']:
+                continue
+            prices = [d['close'] for d in hist['data']]
+            if len(prices) < 2:
+                continue
+            ret = (prices[-1] - prices[0]) / prices[0] * 100
+            self.log_action(f"Backtest: {symbol} return={ret:.2f}%")
+            if ret > best_return:
+                best_return = ret
+                best_symbol = symbol
+        if best_symbol:
+            self.log_action(f"Best performer: {best_symbol} ({best_return:.2f}%)")
+            # Simulate trades: buy at start, sell at end
+            hist = self.api_client.get_historical_data(best_symbol, days=30)
+            buy_price = hist['data'][0]['close']
+            sell_price = hist['data'][-1]['close']
+            pnl = sell_price - buy_price
+            stats['trades'] = 2
+            stats['pnl'] = round(pnl, 2)
+            stats['best_symbol'] = best_symbol
+            stats['best_return'] = round(best_return, 2)
+            self.log_action(f"Backtest trade: BUY {best_symbol} at {buy_price}, SELL at {sell_price}, P&L={pnl:.2f}")
+        else:
+            self.log_action("No valid symbol for backtest.")
+        self.last_execution = datetime.now()
+        self.trade_count = stats['trades']
+        self.stats = stats
+        self.is_running = False
+        self.status = 'STOPPED'
+        self.log_action("Backtest completed.")
     
     def stop(self) -> Dict[str, Any]:
         """Stop the Algo Agent"""
@@ -70,46 +117,61 @@ class AlgoAgent:
     
     def _run_algorithm(self):
         """Main algorithm loop"""
+        import time
         while self.is_running:
             try:
-                # Fetch live data
+                # Step 1: Fetch live data
+                self.log_action("Fetching live market data...")
                 live_data = self.api_client.get_live_data()
-                
                 if live_data['success']:
-                    # Analyze data and execute trades (simplified logic)
+                    self.log_action(f"Live data received: {len(live_data['data']) if isinstance(live_data['data'], list) else 'N/A'} symbols")
+                    # Step 2: Analyze data and execute trades (show research/strategy)
+                    self.log_action("Analyzing data and applying strategy...")
                     self._analyze_and_trade(live_data['data'])
                     self.last_execution = datetime.now()
-                
+                else:
+                    self.log_action(f"Failed to fetch live data: {live_data.get('error')}")
                 # Sleep for a short period before next iteration
-                import time
                 time.sleep(5)  # Update every 5 seconds
-                
             except Exception as e:
                 logger.error(f"Error in algorithm loop: {str(e)}")
                 self.log_action(f"Error: {str(e)}")
     
     def _analyze_and_trade(self, market_data: Dict[str, Any]):
         """
-        Analyze market data and execute trades
-        
+        Analyze market data and execute trades (paper or live)
         Args:
             market_data: Live market data from API
         """
         try:
-            # Simplified trading logic
+            # Example: Custom strategy logic (user can expand this)
             if 'symbols' in market_data:
                 for symbol_data in market_data['symbols']:
                     symbol = symbol_data.get('symbol')
                     change = symbol_data.get('change', 0)
-                    
-                    # Simple strategy: if price moved >1%, consider trading
+                    price = symbol_data.get('price') or symbol_data.get('ltp')
+                    # Log research/decision
+                    self.log_action(f"Research: {symbol} change={change}, price={price}")
+                    # Example rule: if price moved >1%, consider trading
                     if abs(change) > 1.0:
                         trade_type = 'BUY' if change > 0 else 'SELL'
-                        self.log_action(f"Signal detected for {symbol}: {trade_type} ({change}%)")
+                        self.log_action(f"Signal: {trade_type} {symbol} ({change}%)")
+                        if self.trade_mode == 'live':
+                            order_data = {
+                                'symbol': symbol,
+                                'side': trade_type,
+                                'quantity': 1,
+                                'order_type': 'MARKET',
+                                'product': 'CNC',
+                            }
+                            order_resp = self.api_client.place_order(order_data)
+                            self.log_action(f"LIVE TRADE: {trade_type} {symbol} resp={order_resp}")
+                        else:
+                            self.log_action(f"PAPER TRADE: {trade_type} {symbol} ({change}%)")
                         self.trade_count += 1
-                        
         except Exception as e:
             logger.error(f"Error in analyze_and_trade: {str(e)}")
+            self.log_action(f"Error in analyze_and_trade: {str(e)}")
     
     def log_action(self, action: str):
         """
@@ -129,10 +191,13 @@ class AlgoAgent:
     
     def get_status(self) -> Dict[str, Any]:
         """Get agent status"""
+        stats = getattr(self, 'stats', None)
         return {
             'status': self.status,
             'is_running': self.is_running,
             'last_execution': self.last_execution.isoformat() if self.last_execution else None,
             'trade_count': self.trade_count,
-            'recent_logs': self.logs[-10:] if self.logs else []
+            'trade_mode': self.trade_mode,
+            'logs': self.logs[-50:],  # last 50 log entries
+            'stats': stats if stats else None
         }

@@ -66,11 +66,19 @@ class MStockAuth:
                 'username': self.username,
                 'password': self.password
             }
-            logger.debug(f"Step 1: Sending login request to {endpoint}")
+            logger.info(f"Step 1: Sending login request to {endpoint}")
+            logger.info(f"Payload: {payload}")
             response = self.session.post(endpoint, data=payload, headers=headers, timeout=10)
+            logger.info(f"Response status: {response.status_code}")
+            logger.info(f"Response text: {response.text}")
             if response.ok:
-                data = response.json()
-                logger.info(f"Step 1 Success: OTP sent. Response: {data.get('message', 'Check SMS/Email')}")
+                try:
+                    data = response.json()
+                except Exception as e:
+                    logger.error(f"Failed to parse JSON response: {e}")
+                    self.last_error = f"Step 1 Success but response not JSON: {response.text}"
+                    return False
+                logger.info(f"Step 1 Success: OTP sent. Response: {data}")
                 return True
             else:
                 self.last_error = f"Step 1 Failed with status {response.status_code}: {response.text}"
@@ -107,11 +115,19 @@ class MStockAuth:
                 'request_token': otp,  # OTP is used as request_token
                 'checksum': 'L'  # Required by API
             }
-            logger.debug(f"Step 2: Exchanging OTP for access token at {endpoint}")
+            logger.info(f"Step 2: Exchanging OTP for access token at {endpoint}")
+            logger.info(f"Payload: {payload}")
             response = self.session.post(endpoint, data=payload, headers=headers, timeout=10)
+            logger.info(f"Response status: {response.status_code}")
+            logger.info(f"Response text: {response.text}")
             if response.ok:
-                data = response.json()
-                logger.debug(f"Step 2 Response: {data}")
+                try:
+                    data = response.json()
+                except Exception as e:
+                    logger.error(f"Failed to parse JSON response: {e}")
+                    self.last_error = f"Step 2 Success but response not JSON: {response.text}"
+                    return False
+                logger.info(f"Step 2 Response: {data}")
                 if data.get('status') == 'success':
                     self.access_token = data.get('data', {}).get('access_token', '')
                     self.refresh_token = data.get('data', {}).get('refresh_token', '')

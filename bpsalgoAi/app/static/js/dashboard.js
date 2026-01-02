@@ -28,6 +28,23 @@ const otpInput = document.getElementById('otpInput');
 const authStatus = document.getElementById('authStatus');
 const watchlistData = document.getElementById('watchlistData');
 const refreshWatchlistBtn = document.getElementById('refreshWatchlistBtn');
+const paperTradeToggle = document.getElementById('paperTradeToggle');
+const paperTradeLabel = document.getElementById('paperTradeLabel');
+// Add backtest toggle
+let backtestToggle = document.getElementById('backtestToggle');
+if (!backtestToggle) {
+    // Dynamically add if not present
+    const algoControls = document.querySelector('.algo-controls');
+    if (algoControls) {
+        const label = document.createElement('label');
+        label.style.display = 'flex';
+        label.style.alignItems = 'center';
+        label.style.gap = '6px';
+        label.style.fontWeight = '500';
+        label.innerHTML = `<input type="checkbox" id="backtestToggle" style="accent-color: #f59e42; width: 18px; height: 18px;"> <span id="backtestLabel">Backtest</span>`;
+        algoControls.appendChild(label);
+        backtestToggle = document.getElementById('backtestToggle');
+    }
 
 // Initialize dashboard
 document.addEventListener('DOMContentLoaded', function() {
@@ -51,7 +68,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const navWatchlist = document.getElementById('navWatchlist');
         const mainSections = [
             document.querySelector('.auth-section'),
-            document.getElementById('algoSection'),
             document.getElementById('marketSection'),
             document.getElementById('accountSection'),
             document.getElementById('watchlistSection'),
@@ -95,22 +111,43 @@ document.addEventListener('DOMContentLoaded', function() {
     if (sendOtpBtn) sendOtpBtn.addEventListener('click', sendOtp);
     if (verifyOtpBtn) verifyOtpBtn.addEventListener('click', verifyOtp);
 
-    // Show initial auth status
+    // Show initial auth status and hide auth section if already authenticated
     try {
-        authStatus.textContent = cfg && cfg.access_token_valid ? 'Auth: valid' : 'Auth: not authenticated';
+        if (cfg && cfg.access_token_valid) {
+            authStatus.textContent = 'Auth: valid';
+            const authSection = document.querySelector('.auth-section');
+            if (authSection) authSection.style.display = 'none';
+            setSectionsLocked(false);
+            // Only call setupUnlockedSections if not already set up
+            if (!window._sectionsUnlocked) {
+                setupUnlockedSections();
+                window._sectionsUnlocked = true;
+            }
+        } else {
+            authStatus.textContent = 'Auth: not authenticated';
+        }
     } catch (e) {}
 });
 
 function setSectionsLocked(locked) {
     const sections = [
-        document.getElementById('algoSection'),
-        document.getElementById('watchlistSection'),
         document.getElementById('marketSection'),
+        document.getElementById('watchlistSection'),
         document.getElementById('accountSection')
     ];
     for (const sec of sections) {
         if (sec) sec.style.display = locked ? 'none' : '';
     }
+    // Visually fade out market and account blocks if locked
+    const marketSection = document.getElementById('marketSection');
+    const accountSection = document.getElementById('accountSection');
+    if (marketSection) marketSection.style.opacity = locked ? '0.5' : '1';
+    if (accountSection) accountSection.style.opacity = locked ? '0.5' : '1';
+    // Disable/enable buttons in those blocks
+    if (refreshDataBtn) refreshDataBtn.disabled = locked;
+    if (wsConnectBtn) wsConnectBtn.disabled = locked;
+    if (wsDisconnectBtn) wsDisconnectBtn.disabled = locked;
+    if (refreshAccountBtn) refreshAccountBtn.disabled = locked;
     // Also disable WS controls if locked
     if (locked) {
         if (typeof closeWebSocket === 'function') closeWebSocket();
@@ -118,39 +155,6 @@ function setSectionsLocked(locked) {
     }
 }
 
-// After successful OTP verification, unlock all sections and auto-connect WS
-async function verifyOtp() {
-    const otp = otpInput.value.trim();
-    if (!otp) {
-        addLog('Please enter the OTP.', 'error');
-        return;
-    }
-    try {
-        verifyOtpBtn.disabled = true;
-        addLog('Verifying OTP...', 'info');
-        const response = await fetch(`${API_BASE}/auth/verify`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ otp })
-        });
-        const data = await response.json();
-        if (data.success && data.access_token_valid) {
-            addLog('✅ OTP verified. Authenticated.', 'success');
-            authStatus.textContent = 'Auth: valid';
-            setSectionsLocked(false);
-            setupUnlockedSections();
-            // Auto-switch to market movers (watchlist) page
-            showWatchlistPage();
-        } else {
-            addLog('❌ OTP verification failed.', 'error');
-            authStatus.textContent = 'Auth: not authenticated';
-        }
-    } catch (error) {
-        addLog('❌ Error verifying OTP: ' + error.message, 'error');
-    } finally {
-        verifyOtpBtn.disabled = false;
-    }
-}
 
 function setupUnlockedSections() {
     // Set up event listeners for unlocked sections
@@ -159,6 +163,29 @@ function setupUnlockedSections() {
     refreshDataBtn.addEventListener('click', refreshMarketData);
     refreshAccountBtn.addEventListener('click', refreshAccountInfo);
     if (refreshWatchlistBtn) refreshWatchlistBtn.addEventListener('click', refreshWatchlist);
+    // Paper/Live trade toggle logic
+    if (paperTradeToggle && paperTradeLabel) {
+        // Restore mode from localStorage
+        const savedMode = localStorage.getItem('trade_mode');
+        if (savedMode === 'live') {
+            paperTradeToggle.checked = false;
+            paperTradeLabel.textContent = 'Live Trade';
+        } else {
+            paperTradeToggle.checked = true;
+            paperTradeLabel.textContent = 'Paper Trade';
+        }
+        paperTradeToggle.addEventListener('change', function() {
+            if (paperTradeToggle.checked) {
+                localStorage.setItem('trade_mode', 'paper');
+                paperTradeLabel.textContent = 'Paper Trade';
+                addLog('Switched to Paper Trade mode', 'info');
+            } else {
+                localStorage.setItem('trade_mode', 'live');
+                paperTradeLabel.textContent = 'Live Trade';
+                addLog('Switched to Live Trade mode', 'warning');
+            }
+        });
+    }
     // Auto-refresh agent status every 5 seconds
     setInterval(updateAgentStatus, 5000);
     // Auto-refresh market data every 10 seconds
@@ -198,25 +225,37 @@ function setupUnlockedSections() {
 async function startAlgoAgent() {
     try {
         startBtn.disabled = true;
+        // Clear agent status and log for clean slate
+        agentStatus.textContent = 'STARTING...';
+        agentStatus.className = 'status-value';
+        lastExecution.textContent = '-';
+        tradeCount.textContent = '0';
+        if (activityLog) activityLog.innerHTML = '';
         addLog('Starting Algo Agent...', 'info');
-        
+        // Determine trade mode from toggles
+        let trade_mode = 'paper';
+        if (backtestToggle && backtestToggle.checked) {
+            trade_mode = 'backtest';
+        } else if (paperTradeToggle && !paperTradeToggle.checked) {
+            trade_mode = 'live';
+        }
         const response = await fetch(`${API_BASE}/algo/start`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
-            }
+            },
+            body: JSON.stringify({ trade_mode })
         });
-        
         const data = await response.json();
-        
         if (data.success) {
-            addLog('✅ Algo Agent started successfully', 'success');
-            updateAgentStatus();
+            addLog('✅ Algo Agent started in ' + (trade_mode === 'live' ? 'LIVE' : 'PAPER') + ' mode', 'success');
         } else {
             addLog('❌ Failed to start Algo Agent: ' + data.message, 'error');
         }
+        updateAgentStatus();
     } catch (error) {
         addLog('❌ Error starting Algo Agent: ' + error.message, 'error');
+    } finally {
         startBtn.disabled = false;
     }
 }
@@ -228,24 +267,22 @@ async function stopAlgoAgent() {
     try {
         stopBtn.disabled = true;
         addLog('Stopping Algo Agent...', 'info');
-        
         const response = await fetch(`${API_BASE}/algo/stop`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             }
         });
-        
         const data = await response.json();
-        
         if (data.success) {
             addLog('✅ Algo Agent stopped successfully', 'success');
-            updateAgentStatus();
         } else {
             addLog('❌ Failed to stop Algo Agent: ' + data.message, 'error');
         }
+        updateAgentStatus();
     } catch (error) {
         addLog('❌ Error stopping Algo Agent: ' + error.message, 'error');
+    } finally {
         stopBtn.disabled = false;
     }
 }
@@ -255,50 +292,52 @@ async function stopAlgoAgent() {
  */
 async function updateAgentStatus() {
     try {
-        const response = await fetch(`${API_BASE}/algo/status`, {
-            method: 'GET'
-        });
-        
+        const response = await fetch(`${API_BASE}/algo/status`, { method: 'GET' });
         const data = await response.json();
-        
-        // Update status display
-        const statusLower = data.status.toLowerCase();
-        agentStatus.textContent = data.status;
-        agentStatus.className = 'status-value status-' + statusLower;
-        
-        // Update last execution
-        if (data.last_execution) {
-            const date = new Date(data.last_execution);
-            lastExecution.textContent = date.toLocaleString();
-        } else {
-            lastExecution.textContent = '-';
+        if (data) {
+            agentStatus.textContent = data.status || '-';
+            agentStatus.className = 'status-value ' + (data.status === 'RUNNING' ? 'status-running' : 'status-stopped');
+            lastExecution.textContent = data.last_execution ? formatDateTime(data.last_execution) : '-';
+            tradeCount.textContent = data.trade_count || '0';
+            // Show logs
+            if (data.logs && Array.isArray(data.logs)) {
+                activityLog.innerHTML = '';
+                data.logs.forEach(log => addLog(log, 'info'));
+            }
+            // Show live stats (top right)
+            const liveStatsContent = document.getElementById('liveStatsContent');
+            if (liveStatsContent && data.stats) {
+                liveStatsContent.innerHTML =
+                    `<span style='color:#f59e42;font-weight:600;'>Backtest</span><br>` +
+                    `Best: <b>${data.stats.best_symbol || '-'}</b> (${data.stats.best_return || 0}% return)<br>` +
+                    `Trades: <b>${data.stats.trades || 0}</b> &nbsp; P&amp;L: <b>${data.stats.pnl || 0}</b>`;
+            } else if (liveStatsContent) {
+                liveStatsContent.innerHTML = '';
+            }
+
+            // Update button states
+            if (data.is_running) {
+                startBtn.disabled = true;
+                stopBtn.disabled = false;
+            } else {
+                startBtn.disabled = false;
+                stopBtn.disabled = true;
+            }
+
+            // Add recent logs
+            if (data.recent_logs && data.recent_logs.length > 0) {
+                data.recent_logs.forEach(log => {
+                    // Only add if not already in log
+                    if (!activityLog.textContent.includes(log)) {
+                        addLog(log, 'info');
+                    }
+                });
+            }
         }
-        
-        // Update trade count
-        tradeCount.textContent = data.trade_count;
-        
-        // Update button states
-        if (data.is_running) {
-            startBtn.disabled = true;
-            stopBtn.disabled = false;
-        } else {
-            startBtn.disabled = false;
-            stopBtn.disabled = true;
-        }
-        
-        // Add recent logs
-        if (data.recent_logs && data.recent_logs.length > 0) {
-            data.recent_logs.forEach(log => {
-                // Only add if not already in log
-                if (!activityLog.textContent.includes(log)) {
-                    addLog(log, 'info');
-                }
-            });
-        }
-        
     } catch (error) {
         console.error('Error updating agent status:', error);
     }
+}
 }
 
 /**
@@ -433,24 +472,24 @@ async function loadConfig() {
         const data = await response.json();
         
         configInfo.innerHTML = '';
-        for (const [key, value] of Object.entries(data)) {
+        // Only show minimal config info
+        const minimalKeys = ['success', 'access_token_valid', 'ws_endpoint'];
+        minimalKeys.forEach(key => {
+            if (!(key in data)) return;
             const item = document.createElement('div');
             item.className = 'config-item';
-            
-            const displayKey = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-            let displayValue = value ? '✓ Configured' : '✗ Not configured';
-            
-            if (typeof value === 'string' || typeof value === 'boolean') {
-                displayValue = value.toString();
+            let displayKey = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+            let displayValue = data[key];
+            if (key === 'ws_endpoint' && typeof displayValue === 'string') {
+                // Truncate long ws_endpoint for display
+                displayValue = displayValue.length > 60 ? displayValue.slice(0, 60) + '...' : displayValue;
             }
-            
             item.innerHTML = `
                 <span class="config-label">${displayKey}</span>
                 <span class="config-value">${displayValue}</span>
             `;
-            
             configInfo.appendChild(item);
-        }
+        });
         
     } catch (error) {
         console.error('Error loading config:', error);
@@ -732,15 +771,13 @@ async function refreshWatchlist() {
         const resp = await fetch(`${API_BASE}/watchlist`, { method: 'GET' });
         const data = await resp.json();
 
-        if (data.success && data.data && Array.isArray(data.data)) {
-            displayWatchlist(data.data);
-            addLog('✅ Watchlist loaded (' + data.data.length + ' items)', 'success');
-        } else if (data.data && Array.isArray(data.data) && data.data.length > 0) {
+        if (data.success && data.data && Array.isArray(data.data) && data.data.length > 0) {
             displayWatchlist(data.data);
             addLog('✅ Watchlist loaded (' + data.data.length + ' items)', 'success');
         } else {
             addLog('⚠️ Watchlist empty or not available', 'warning');
-            watchlistData.innerHTML = '<p class="placeholder">No watchlist items</p>';
+            let raw = data.raw ? JSON.stringify(data.raw, null, 2) : '';
+            watchlistData.innerHTML = '<p class="placeholder">No watchlist items</p>' + (raw ? `<pre style="font-size:12px;color:#888;background:#222;padding:8px;overflow:auto;">Raw: ${raw}</pre>` : '');
         }
         refreshWatchlistBtn.disabled = false;
     } catch (e) {
@@ -756,28 +793,66 @@ function displayWatchlist(items) {
         return;
     }
 
+    // Sort by change ascending (gainers/losers)
+    items = items.slice().sort((a, b) => {
+        const ca = parseFloat(a.change || a.pchange || 0);
+        const cb = parseFloat(b.change || b.pchange || 0);
+        return ca - cb;
+    });
+
     const table = document.createElement('table');
     table.style.width = '100%';
     table.style.borderCollapse = 'collapse';
-    table.innerHTML = '<thead><tr><th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Symbol</th><th style="border: 1px solid #ddd; padding: 8px; text-align: right;">Price</th><th style="border: 1px solid #ddd; padding: 8px; text-align: right;">Change</th></tr></thead>';
+    table.style.background = '#1e293b';
+    table.style.fontSize = '1.05em';
+    table.style.boxShadow = '0 2px 8px rgba(30,64,175,0.08)';
+    table.innerHTML = `<thead style="background:#1e40af;"><tr>
+        <th style="border: 1px solid #334155; padding: 8px; text-align: left; color:#fff;">Symbol</th>
+        <th style="border: 1px solid #334155; padding: 8px; text-align: right; color:#fff;">Price</th>
+        <th style="border: 1px solid #334155; padding: 8px; text-align: right; color:#fff;">Change (%)</th>
+        <th style="border: 1px solid #334155; padding: 8px; text-align: right; color:#fff;">Open</th>
+        <th style="border: 1px solid #334155; padding: 8px; text-align: right; color:#fff;">Close</th>
+        <th style="border: 1px solid #334155; padding: 8px; text-align: right; color:#fff;">High</th>
+        <th style="border: 1px solid #334155; padding: 8px; text-align: right; color:#fff;">Low</th>
+        <th style="border: 1px solid #334155; padding: 8px; text-align: right; color:#fff;">Volume</th>
+        <th style="border: 1px solid #334155; padding: 8px; text-align: center; color:#fff;">Trend</th>
+    </tr></thead>`;
 
     const tbody = document.createElement('tbody');
     items.forEach(item => {
         if (typeof item === 'string') {
             // Simple symbol string
             const row = document.createElement('tr');
-            row.innerHTML = `<td style="border: 1px solid #ddd; padding: 8px;">${item}</td><td style="border: 1px solid #ddd; padding: 8px; text-align: right;">-</td><td style="border: 1px solid #ddd; padding: 8px; text-align: right;">-</td>`;
+            row.innerHTML = `<td style="border: 1px solid #cbd5e1; padding: 8px;">${item}</td>` +
+                '<td style="border: 1px solid #cbd5e1; padding: 8px; text-align: right;">-</td>'.repeat(7) +
+                '<td style="border: 1px solid #cbd5e1; padding: 8px; text-align: center;">-</td>';
             tbody.appendChild(row);
         } else if (typeof item === 'object' && item.symbol) {
-            // Object with symbol, price, change
-            const row = document.createElement('tr');
             const price = item.price || item.ltp || '-';
-            const change = item.change || item.pchange || '-';
-            const changeClass = change > 0 ? 'positive' : change < 0 ? 'negative' : '';
+            let change = item.change || item.pchange || '-';
+            const open = item.open || item.open_price || '-';
+            const close = item.close || item.close_price || item.prevclose || '-';
+            const high = item.high || item.high_price || '-';
+            const low = item.low || item.low_price || '-';
+            const volume = item.volume || item.vol || '-';
+            let changeVal = parseFloat(change) || 0;
+            // Show change as percent with 2 decimals
+            if (change !== '-') {
+                change = changeVal.toFixed(2) + '%';
+            }
+            const trend = changeVal > 0 ? '▲' : changeVal < 0 ? '▼' : '-';
+            const trendColor = changeVal > 0 ? 'green' : changeVal < 0 ? 'red' : 'gray';
+            const row = document.createElement('tr');
             row.innerHTML = `
-                <td style="border: 1px solid #ddd; padding: 8px;">${item.symbol}</td>
-                <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${price}</td>
-                <td style="border: 1px solid #ddd; padding: 8px; text-align: right; color: ${change > 0 ? 'green' : change < 0 ? 'red' : 'black'};">${change}</td>
+                <td style="border: 1px solid #334155; padding: 8px; font-weight:600; color:#fff; background:#273449;">${item.symbol}</td>
+                <td style="border: 1px solid #334155; padding: 8px; text-align: right; color:#fff; background:#273449;">${price}</td>
+                <td style="border: 1px solid #334155; padding: 8px; text-align: right; color: ${trendColor}; font-weight:600; background:#273449;">${change}</td>
+                <td style="border: 1px solid #334155; padding: 8px; text-align: right; color:#fff; background:#273449;">${open}</td>
+                <td style="border: 1px solid #334155; padding: 8px; text-align: right; color:#fff; background:#273449;">${close}</td>
+                <td style="border: 1px solid #334155; padding: 8px; text-align: right; color:#fff; background:#273449;">${high}</td>
+                <td style="border: 1px solid #334155; padding: 8px; text-align: right; color:#fff; background:#273449;">${low}</td>
+                <td style="border: 1px solid #334155; padding: 8px; text-align: right; color:#fff; background:#273449;">${volume}</td>
+                <td style="border: 1px solid #334155; padding: 8px; text-align: center; color: ${trendColor}; font-size: 1.2em; font-weight: bold; background:#273449;">${trend}</td>
             `;
             tbody.appendChild(row);
         }
