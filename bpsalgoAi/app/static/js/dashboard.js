@@ -31,6 +31,61 @@ const refreshWatchlistBtn = document.getElementById('refreshWatchlistBtn');
 
 // Initialize dashboard
 document.addEventListener('DOMContentLoaded', function() {
+            // Auto-refresh for market movers (watchlist) page
+            let watchlistInterval = null;
+            function startWatchlistAutoRefresh() {
+                if (watchlistInterval) clearInterval(watchlistInterval);
+                watchlistInterval = setInterval(() => {
+                    const watchlistSection = document.getElementById('watchlistSection');
+                    if (watchlistSection && watchlistSection.style.display !== 'none') {
+                        refreshWatchlist();
+                    }
+                }, 10000); // 10 seconds
+            }
+            function stopWatchlistAutoRefresh() {
+                if (watchlistInterval) clearInterval(watchlistInterval);
+                watchlistInterval = null;
+            }
+        // Navigation bar logic
+        const navDashboard = document.getElementById('navDashboard');
+        const navWatchlist = document.getElementById('navWatchlist');
+        const mainSections = [
+            document.querySelector('.auth-section'),
+            document.getElementById('algoSection'),
+            document.getElementById('marketSection'),
+            document.getElementById('accountSection'),
+            document.getElementById('watchlistSection'),
+            document.querySelector('.log-section'),
+            document.querySelector('.config-section')
+        ];
+
+        function showDashboardPage() {
+            // Show all main dashboard sections except watchlist
+            mainSections.forEach(sec => {
+                if (!sec) return;
+                if (sec.id === 'watchlistSection') {
+                    sec.style.display = 'none';
+                } else {
+                    sec.style.display = '';
+                }
+            });
+            stopWatchlistAutoRefresh();
+        }
+        function showWatchlistPage() {
+            // Hide all except watchlist
+            mainSections.forEach(sec => {
+                if (!sec) return;
+                if (sec.id === 'watchlistSection') {
+                    sec.style.display = '';
+                } else {
+                    sec.style.display = 'none';
+                }
+            });
+            refreshWatchlist();
+            startWatchlistAutoRefresh();
+        }
+        if (navDashboard) navDashboard.addEventListener('click', showDashboardPage);
+        if (navWatchlist) navWatchlist.addEventListener('click', showWatchlistPage);
     console.log('Dashboard initialized');
     
     // Hide all sections except auth until authenticated
@@ -84,13 +139,8 @@ async function verifyOtp() {
             authStatus.textContent = 'Auth: valid';
             setSectionsLocked(false);
             setupUnlockedSections();
-            // Auto-switch to watchlist section
-            const watchlistSection = document.getElementById('watchlistSection');
-            if (watchlistSection) {
-                watchlistSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                watchlistSection.style.boxShadow = '0 0 0 4px #0b8457';
-                setTimeout(() => { watchlistSection.style.boxShadow = ''; }, 2000);
-            }
+            // Auto-switch to market movers (watchlist) page
+            showWatchlistPage();
         } else {
             addLog('❌ OTP verification failed.', 'error');
             authStatus.textContent = 'Auth: not authenticated';

@@ -184,9 +184,8 @@ class MStockAPI:
     
     def get_watchlist(self) -> Dict[str, Any]:
         """
-        Fetch watchlist from mStock account (Type A API).
-        Typically available at /user/watchlist or similar endpoint.
-        
+        Fetch live top gainers/losers as a watchlist replacement (Type A API).
+        Uses the official endpoint for market movers.
         Returns:
             Dictionary with watchlist data and symbols
         """
@@ -194,39 +193,38 @@ class MStockAPI:
             if not self.auth or not self.auth.is_token_valid():
                 logger.warning("Cannot fetch watchlist: not authenticated")
                 return {'success': False, 'data': [], 'error': 'Not authenticated'}
-            
-            # Try possible watchlist endpoints
-            endpoints = [
-                f"{self.base_url}/user/watchlist",
-                f"{self.base_url}/watchlist",
-                f"{self.base_url}/user/favorites",
-            ]
-            
+
+            # Use the official Top Gainers/Losers endpoint
+            endpoint = f"{self.base_url}/market/gainers-losers"
             headers = self._get_headers()
-            
-            for endpoint in endpoints:
-                try:
-                    logger.debug(f"Trying watchlist endpoint: {endpoint}")
-                    response = self.session.get(endpoint, headers=headers, timeout=10)
-                    
-                    if response.ok:
-                        data = response.json()
-                        if data.get('status') == 'success' or 'data' in data:
-                            logger.info(f"Successfully fetched watchlist from {endpoint}")
-                            # Normalize response
-                            watchlist_data = data.get('data', [])
-                            if isinstance(watchlist_data, dict):
-                                watchlist_data = watchlist_data.get('symbols', [])
-                            return {'success': True, 'data': watchlist_data}
-                except Exception as e:
-                    logger.debug(f"Endpoint {endpoint} failed: {e}")
-                    continue
-            
-            logger.warning("No watchlist endpoint responded successfully")
-            return {'success': False, 'data': [], 'error': 'Watchlist endpoint not found'}
-        
+            response = self.session.get(endpoint, headers=headers, timeout=10)
+            logger.info(f"Gainers/Losers raw response: {response.text}")
+            if response.ok:
+                data = response.json()
+                # Try to find the array of stocks in the response
+                watchlist_data = []
+                if isinstance(data, list):
+                    watchlist_data = data
+                elif 'data' in data and isinstance(data['data'], list):
+                    watchlist_data = data['data']
+                elif 'gainers' in data and isinstance(data['gainers'], list):
+                    watchlist_data = data['gainers']
+                elif 'losers' in data and isinstance(data['losers'], list):
+                    watchlist_data = data['losers']
+                else:
+                    # Try to find any list in the response
+                    for k, v in data.items():
+                        if isinstance(v, list):
+                            watchlist_data = v
+                            break
+                if not watchlist_data:
+                    logger.warning(f"No stocks found in gainers/losers response: {data}")
+                return {'success': True, 'data': watchlist_data, 'raw': data}
+            else:
+                logger.warning(f"Gainers/Losers endpoint failed: {response.status_code} {response.text}")
+                return {'success': False, 'data': [], 'error': f"Gainers/Losers endpoint failed: {response.status_code}", 'raw': response.text}
         except Exception as e:
-            logger.error(f"Error fetching watchlist: {str(e)}")
+            logger.error(f"Error fetching gainers/losers: {str(e)}")
             return {'success': False, 'data': [], 'error': str(e)}
     
     def _get_mock_quotes(self, symbols: List[str]) -> List[Dict[str, Any]]:

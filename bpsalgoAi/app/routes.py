@@ -174,9 +174,14 @@ def get_config():
             'mstock_account': MSTOCK_ACCOUNT,
             'credentials_present': bool(os.getenv('MSTOCK_USERNAME')) and bool(os.getenv('MSTOCK_PASSWORD')),
             'access_token_valid': mstock_auth.is_token_valid(),
-            # Only provide ws_endpoint if authenticated
-            'ws_endpoint': MSTOCK_WS_ENDPOINT if mstock_auth.is_token_valid() else None
+            'api_key': API_KEY,
+            'access_token': mstock_auth.get_token() if mstock_auth.is_token_valid() else None,
+            # Only provide ws_endpoint if authenticated, and include API_KEY and ACCESS_TOKEN in URL
+            'ws_endpoint': None
         }
+        if mstock_auth.is_token_valid():
+            ws_url = f"{MSTOCK_WS_ENDPOINT}?API_KEY={API_KEY}&ACCESS_TOKEN={mstock_auth.get_token()}"
+            config['ws_endpoint'] = ws_url
         return jsonify(config)
     except Exception as e:
         logger.error(f"/api/config error: {e}", exc_info=True)
