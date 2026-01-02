@@ -63,7 +63,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 watchlistInterval = setInterval(() => {
                     const watchlistSection = document.getElementById('watchlistSection');
                     if (watchlistSection && watchlistSection.style.display !== 'none') {
-                        refreshWatchlist();
+                        refreshCurrentWatchlistTab(true);
                     }
                 }, 10000); // 10 seconds
             }
@@ -105,7 +105,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     sec.style.display = 'none';
                 }
             });
-            refreshWatchlist();
+            refreshCurrentWatchlistTab();
             startWatchlistAutoRefresh();
         }
         if (navDashboard) navDashboard.addEventListener('click', showDashboardPage);
@@ -622,7 +622,7 @@ async function verifyOtp() {
             authStatus.textContent = data.access_token_valid ? 'Auth: valid' : 'Auth: invalid';
             // refresh config and try WS
             await loadConfig();
-            refreshWatchlist();
+            refreshCurrentWatchlistTab();
             initWebSocketIfConfigured(true);
         } else {
             addLog('OTP verification failed: ' + (data.message || data.error), 'error');
@@ -784,24 +784,19 @@ function showConfirmation(message, timeout = 3500) {
 
 // --- Watchlist support ---
 async function refreshWatchlist() {
-    try {
-        refreshWatchlistBtn.disabled = true;
-        addLog('Fetching watchlist...', 'info');
-        const resp = await fetch(`${API_BASE}/watchlist`, { method: 'GET' });
-        const data = await resp.json();
+    refreshCurrentWatchlistTab(false, true);
+}
 
-        if (data.success && data.data && Array.isArray(data.data) && data.data.length > 0) {
-            displayWatchlist(data.data);
-            addLog('✅ Watchlist loaded (' + data.data.length + ' items)', 'success');
-        } else {
-            addLog('⚠️ Watchlist empty or not available', 'warning');
-            let raw = data.raw ? JSON.stringify(data.raw, null, 2) : '';
-            watchlistData.innerHTML = '<p class="placeholder">No watchlist items</p>' + (raw ? `<pre style="font-size:12px;color:#888;background:#222;padding:8px;overflow:auto;">Raw: ${raw}</pre>` : '');
-        }
-        refreshWatchlistBtn.disabled = false;
+async function refreshCurrentWatchlistTab(silent = false, logIt = false) {
+    try {
+        if (refreshWatchlistBtn && !silent) refreshWatchlistBtn.disabled = true;
+        if (logIt && !silent) addLog('Refreshing watchlist tab...', 'info');
+        await fetchWatchlistTab(currentWatchlistTab, { silent });
+        if (logIt && !silent) addLog('✅ Watchlist refreshed', 'success');
     } catch (e) {
-        addLog('❌ Error fetching watchlist: ' + e.message, 'error');
-        refreshWatchlistBtn.disabled = false;
+        if (logIt && !silent) addLog('❌ Error refreshing watchlist: ' + e.message, 'error');
+    } finally {
+        if (refreshWatchlistBtn && !silent) refreshWatchlistBtn.disabled = false;
     }
 }
 
@@ -907,24 +902,28 @@ if (watchlistTabs && watchlistTabs.length) {
     setActiveWatchlistTab(currentWatchlistTab);
 }
 
-function fetchWatchlistTab(tab) {
+function fetchWatchlistTab(tab, options = {}) {
+    const silent = options.silent;
     if (!watchlistTabContent) {
         addLog('Watchlist content area not found. Please reload the page.', 'error');
         return;
     }
 
     if (tab === 'algo_top10') {
-        watchlistTabContent.innerHTML = '<p class="placeholder">Loading Algo watchlist...</p>';
-        fetchAlgoWatchlist();
-        return;
+        if (!silent) {
+            watchlistTabContent.innerHTML = '<p class="placeholder">Loading Algo watchlist...</p>';
+        }
+        return fetchAlgoWatchlist();
     }
 
-    watchlistTabContent.innerHTML = '<p class="placeholder">Loading...</p>';
+    if (!silent) {
+        watchlistTabContent.innerHTML = '<p class="placeholder">Loading...</p>';
+    }
     let endpoint = `${API_BASE}/watchlist/tab/${tab}`;
     if (tab === 'user') {
         endpoint = `${API_BASE}/watchlist/tab/user`;
     }
-    fetch(endpoint)
+    return fetch(endpoint)
         .then(res => res.json())
         .then(data => {
             if (data.success && Array.isArray(data.data)) {
@@ -959,11 +958,13 @@ const miniGraphContainer = document.getElementById('miniGraphContainer');
 const miniGraphCanvas = document.getElementById('miniGraph');
 const miniGraphTitle = document.getElementById('miniGraphTitle');
 const miniGraphIntervalSelect = document.getElementById('miniGraphInterval');
+const miniGraphPlaceholder = document.getElementById('miniGraphPlaceholder');
 
 function showMiniGraph(symbol) {
     miniGraphSymbol = symbol;
     miniGraphInterval = parseInt(miniGraphIntervalSelect.value);
     miniGraphTitle.textContent = `Mini-Graph: ${symbol}`;
+    if (miniGraphPlaceholder) miniGraphPlaceholder.textContent = '';
     miniGraphContainer.style.display = '';
     fetchMiniGraphData();
 }
@@ -1070,7 +1071,7 @@ function displayAlgoWatchlistTable(stocks) {
 // --- Algo Agent Watchlist fetch/refresh ---
 function fetchAlgoWatchlist() {
     if (currentWatchlistTab !== 'algo_top10') return;
-    fetch('/api/algo/watchlist')
+    return fetch('/api/algo/watchlist')
         .then(res => res.json())
         .then(data => {
             if (data.success && Array.isArray(data.data)) {

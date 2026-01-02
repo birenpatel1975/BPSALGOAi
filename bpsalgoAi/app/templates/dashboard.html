@@ -59,22 +59,33 @@
                     <button id="startBtn" class="btn btn-start"><span class="btn-icon">▶️</span> Start Agent</button>
                     <button id="stopBtn" class="btn btn-stop" disabled><span class="btn-icon">⏹️</span> Stop Agent</button>
                 </div>
-                <div id="watchlistTabContent" class="watchlist-data">
-                    <p class="placeholder">Select a tab to view stocks...</p>
-                </div>
-                <div id="miniGraphContainer" style="margin-top:24px;display:none;">
-                    <div style="display:flex;align-items:center;gap:12px;">
-                        <span id="miniGraphTitle" style="font-weight:600;font-size:1.1em;"></span>
-                        <label>Interval:
-                            <select id="miniGraphInterval">
-                                <option value="1">1 min</option>
-                                <option value="5">5 min</option>
-                                <option value="10">10 min</option>
-                                <option value="15">15 min</option>
-                            </select>
-                        </label>
+                <div class="watchlist-layout">
+                    <div class="watchlist-left">
+                        <div id="watchlistTabContent" class="watchlist-data watchlist-table-wrapper">
+                            <p class="placeholder">Select a tab to view stocks...</p>
+                        </div>
                     </div>
-                    <canvas id="miniGraph" width="600" height="220"></canvas>
+                    <div class="watchlist-right">
+                        <div id="miniGraphContainer" class="mini-graph-card">
+                            <div class="mini-graph-header">
+                                <div>
+                                    <span id="miniGraphTitle" class="mini-graph-title">Select a stock to view mini-graph</span>
+                                    <div id="miniGraphPlaceholder" class="mini-graph-placeholder">Choose any row to see its price action.</div>
+                                </div>
+                                <label class="mini-graph-interval">Interval:
+                                    <select id="miniGraphInterval">
+                                        <option value="1">1 min</option>
+                                        <option value="5">5 min</option>
+                                        <option value="10">10 min</option>
+                                        <option value="15">15 min</option>
+                                    </select>
+                                </label>
+                            </div>
+                            <div class="mini-graph-canvas-wrap">
+                                <canvas id="miniGraph" width="520" height="260"></canvas>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </section>
 

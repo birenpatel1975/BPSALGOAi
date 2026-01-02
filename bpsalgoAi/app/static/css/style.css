@@ -338,6 +338,107 @@ body {
     word-break: break-all;
 }
 
+/* Watchlist layout */
+.watchlist-layout {
+    display: flex;
+    gap: 18px;
+    align-items: flex-start;
+    margin-top: 12px;
+}
+
+.watchlist-left {
+    flex: 2;
+    min-width: 0;
+}
+
+.watchlist-right {
+    flex: 1;
+    min-width: 320px;
+}
+
+.watchlist-table-wrapper {
+    overflow: auto;
+    max-height: 520px;
+    padding: 6px;
+    background: #0f172a;
+    border-radius: 10px;
+    border: 1px solid #1e293b;
+}
+
+.watchlist-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.98em;
+    color: #e2e8f0;
+}
+
+.watchlist-table thead th {
+    background: #1e40af;
+    color: #fff;
+    padding: 10px 12px;
+    text-align: left;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+
+.watchlist-table tbody td {
+    padding: 10px 12px;
+    border-bottom: 1px solid #243045;
+    background: #1b2435;
+}
+
+.watchlist-table tbody tr:nth-child(even) {
+    background: #1d2940;
+}
+
+.watchlist-table tbody tr:hover {
+    background: #243556;
+    cursor: pointer;
+}
+
+.mini-graph-card {
+    background: #0f172a;
+    border: 1px solid #1e293b;
+    border-radius: 12px;
+    padding: 14px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+    min-height: 320px;
+}
+
+.mini-graph-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 10px;
+    color: #e2e8f0;
+}
+
+.mini-graph-title {
+    font-weight: 700;
+    font-size: 1.05em;
+}
+
+.mini-graph-placeholder {
+    color: #94a3b8;
+    font-size: 0.9em;
+}
+
+.mini-graph-interval select {
+    background: #1b263b;
+    color: #e2e8f0;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    padding: 6px 8px;
+}
+
+.mini-graph-canvas-wrap {
+    background: #0b1222;
+    border-radius: 10px;
+    padding: 8px;
+}
+
 /* Placeholder */
 .placeholder {
     text-align: center;
@@ -405,6 +506,15 @@ body {
 
     .market-data {
         grid-template-columns: 1fr;
+    }
+
+    .watchlist-layout {
+        flex-direction: column;
+    }
+
+    .watchlist-right {
+        width: 100%;
+        min-width: 0;
     }
 }
 
