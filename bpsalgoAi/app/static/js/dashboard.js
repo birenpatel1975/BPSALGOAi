@@ -238,7 +238,7 @@ async function startAlgoAgent() {
         lastExecution.textContent = '-';
         tradeCount.textContent = '0';
         if (activityLog) activityLog.innerHTML = '';
-        addLog('Starting Algo Agent...', 'info');
+        addLog('Starting Algo Agent. The system will now scan for top stocks and begin trading automatically.', 'info');
         // Determine trade mode from toggles
         let trade_mode = 'paper';
         if (backtestToggle && backtestToggle.checked) {
@@ -282,7 +282,7 @@ async function startAlgoAgent() {
 async function stopAlgoAgent() {
     try {
         stopBtn.disabled = true;
-        addLog('Stopping Algo Agent...', 'info');
+        addLog('Stopping Algo Agent. All trading actions will be paused.', 'warning');
         const response = await fetch(`${API_BASE}/algo/stop`, {
             method: 'POST',
             headers: {
@@ -516,18 +516,18 @@ async function loadConfig() {
  * Add Log Entry
  */
 function addLog(message, type = 'info') {
+    if (!activityLog) return;
+    let color = '#fff';
+    if (type === 'error') color = '#e53e3e';
+    if (type === 'success') color = '#38a169';
+    if (type === 'warning') color = '#f6ad55';
+    if (type === 'info') color = '#3182ce';
     const entry = document.createElement('div');
     entry.className = `log-entry log-${type}`;
-    
-    const timestamp = new Date().toLocaleTimeString();
-    entry.textContent = `[${timestamp}] ${message}`;
-    
-    activityLog.insertBefore(entry, activityLog.firstChild);
-    
-    // Keep only last 50 entries
-    while (activityLog.children.length > 50) {
-        activityLog.removeChild(activityLog.lastChild);
-    }
+    entry.style.color = color;
+    entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+    activityLog.appendChild(entry);
+    activityLog.scrollTop = activityLog.scrollHeight;
 }
 
 // --- WebSocket support (connects to backend-provided WS URL) ---
@@ -877,31 +877,64 @@ function displayWatchlist(items) {
     watchlistData.appendChild(table);
 }
 
-function attemptReconnect(url) {
-    if (!wsToggle || !wsToggle.checked) {
-        console.log('User disabled WebSocket; not attempting reconnect');
-        return;
-    }
+// Watchlist tab logic
+const watchlistTabs = document.querySelectorAll('.watchlist-tab');
+const watchlistTabContent = document.getElementById('watchlistTabContent');
+let currentWatchlistTab = 'algo_top10';
 
-    if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-        console.warn('Max WebSocket reconnect attempts reached');
-        addLog('Max WebSocket reconnect attempts reached', 'error');
-        return;
-    }
-
-    const delay = Math.min(30000, 1000 * Math.pow(2, reconnectAttempts));
-    reconnectAttempts += 1;
-    console.log(`Reconnecting WebSocket in ${delay}ms (attempt ${reconnectAttempts})`);
-    setTimeout(() => connectWebSocket(url), delay);
-}
-
-function closeWebSocket() {
-    if (marketSocket) {
-        try {
-            marketSocket.close();
-        } catch (e) {
-            console.warn('Error closing WebSocket', e);
+function setActiveWatchlistTab(tab) {
+    watchlistTabs.forEach(btn => {
+        if (btn.dataset.tab === tab) {
+            btn.classList.add('active');
+        } else {
+            btn.classList.remove('active');
         }
-        marketSocket = null;
-    }
+    });
+    currentWatchlistTab = tab;
+    fetchWatchlistTab(tab);
 }
+
+watchlistTabs.forEach(btn => {
+    btn.addEventListener('click', () => {
+        setActiveWatchlistTab(btn.dataset.tab);
+    });
+});
+
+function fetchWatchlistTab(tab) {
+    if (!watchlistTabContent) {
+        addLog('Watchlist content area not found. Please reload the page.', 'error');
+        return;
+    }
+    watchlistTabContent.innerHTML = '<p class="placeholder">Loading...</p>';
+    let endpoint = `${API_BASE}/watchlist/tab/${tab}`;
+    if (tab === 'user') {
+        endpoint = `${API_BASE}/watchlist/tab/user`;
+    }
+    fetch(endpoint)
+        .then(res => res.json())
+        .then(data => {
+            if (data.success && Array.isArray(data.data)) {
+                if (data.data.length === 0) {
+                    watchlistTabContent.innerHTML = '<p class="placeholder">No stocks found for this tab.</p>';
+                } else {
+                    // Render a simple table for now
+                    let html = `<table class="watchlist-table"><thead><tr><th>Symbol</th><th>Price</th><th>Change</th></tr></thead><tbody>`;
+                    data.data.forEach(stock => {
+                        html += `<tr><td>${stock.symbol || '-'}</td><td>${stock.price || stock.ltp || '-'}</td><td>${stock.change || '-'}</td></tr>`;
+                    });
+                    html += '</tbody></table>';
+                    watchlistTabContent.innerHTML = html;
+                }
+            } else {
+                watchlistTabContent.innerHTML = `<p class="placeholder">Error loading tab: ${data.error || 'Unknown error'}</p>`;
+            }
+        })
+        .catch(err => {
+            if (watchlistTabContent) {
+                watchlistTabContent.innerHTML = `<p class="placeholder">Error loading tab: ${err.message}</p>`;
+            }
+            addLog('Watchlist fetch failed: ' + err.message, 'error');
+        });
+}
+
+// Ensure all functions and the file are properly closed

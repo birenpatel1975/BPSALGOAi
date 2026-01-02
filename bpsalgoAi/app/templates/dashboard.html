@@ -41,9 +41,26 @@
             <!-- Watchlist Section (locked until auth) -->
             <section class="card watchlist-section" id="watchlistSection" style="display:none;">
                 <h2>Watchlist</h2>
-                <button id="refreshWatchlistBtn" class="btn btn-refresh">🔄 Refresh Watchlist</button>
-                <div id="watchlistData" class="watchlist-data">
-                    <p class="placeholder">Loading watchlist from your account...</p>
+                <div class="watchlist-tabs" style="margin-bottom:12px;display:flex;gap:8px;">
+                    <button class="watchlist-tab" data-tab="algo_top10">Algo Top 10</button>
+                    <button class="watchlist-tab" data-tab="auto">Auto Sector</button>
+                    <button class="watchlist-tab" data-tab="finance">Finance/Banking</button>
+                    <button class="watchlist-tab" data-tab="pharma">Pharma</button>
+                    <button class="watchlist-tab" data-tab="metal">Metal</button>
+                    <button class="watchlist-tab" data-tab="power">Power</button>
+                    <button class="watchlist-tab" data-tab="penny">Penny Stocks</button>
+                </div>
+                <div style="display:flex;align-items:center;gap:16px;margin-bottom:10px;">
+                    <button id="refreshWatchlistBtn" class="btn btn-refresh">🔄 Refresh Watchlist</button>
+                    <label style="display: flex; align-items: center; gap: 6px; font-weight: 500;">
+                        <input type="checkbox" id="paperTradeToggle" checked style="accent-color: #1e40af; width: 18px; height: 18px;">
+                        <span id="paperTradeLabel">Paper Trade</span>
+                    </label>
+                    <button id="startBtn" class="btn btn-start"><span class="btn-icon">▶️</span> Start Agent</button>
+                    <button id="stopBtn" class="btn btn-stop" disabled><span class="btn-icon">⏹️</span> Stop Agent</button>
+                </div>
+                <div id="watchlistTabContent" class="watchlist-data">
+                    <p class="placeholder">Select a tab to view stocks...</p>
                 </div>
             </section>
 

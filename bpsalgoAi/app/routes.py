@@ -89,6 +89,7 @@ def get_live_data():
 @api_bp.route('/market/quote/<symbol>', methods=['GET'])
 def get_quote(symbol):
     """Get quote for a symbol"""
+    # === REVERTED TO ORIGINAL OTP/AUTH ENDPOINTS ===
     quote = mstock_api.get_symbol_quote(symbol)
     return jsonify(quote)
 
@@ -163,6 +164,36 @@ def get_watchlist():
     except Exception as e:
         logger.error(f"Error fetching watchlist: {e}")
         return jsonify({'success': False, 'error': str(e), 'data': []}), 500
+
+@api_bp.route('/watchlist/tab/<tab>', methods=['GET'])
+def get_watchlist_tab(tab):
+    """Get stocks for a specific watchlist tab. Tab 1 is for Algo Agent, others are sector-based or user's mStock account."""
+    try:
+        # Tab 1: Algo Agent's Top 10
+        if tab == 'algo_top10':
+            return jsonify(mstock_api.get_watchlist_tab('algo_top10'))
+        # Tab 2-7: Sectors or user's mStock account watchlist
+        elif tab in mstock_api.SECTOR_STOCKS:
+            return jsonify(mstock_api.get_watchlist_tab(tab))
+        elif tab == 'user':
+            # Replicate user's mStock account watchlist (authenticated)
+            watchlist = mstock_api.get_watchlist()
+            return jsonify(watchlist)
+        else:
+            return jsonify({'success': False, 'data': [], 'error': 'Invalid tab'})
+    except Exception as e:
+        logger.error(f"Error fetching watchlist tab {tab}: {e}")
+        return jsonify({'success': False, 'data': [], 'error': str(e)})
+
+@api_bp.route('/watchlist/tab/user', methods=['GET'])
+def get_user_watchlist_tab():
+    """Get the authenticated user's mStock account watchlist."""
+    try:
+        watchlist = mstock_api.get_watchlist()
+        return jsonify(watchlist)
+    except Exception as e:
+        logger.error(f"Error fetching user watchlist tab: {e}")
+        return jsonify({'success': False, 'data': [], 'error': str(e)})
 
 # ==================== Configuration API ====================
 

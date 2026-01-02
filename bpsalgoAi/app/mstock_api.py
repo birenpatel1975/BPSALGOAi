@@ -19,7 +19,56 @@ MOCK_MARKET_DATA = {
 }
 
 class MStockAPI:
-    """Client for Type A/B API with proper authentication"""
+    # Watchlist tab definitions
+    WATCHLIST_TABS = [
+        'algo_top10',    # Tab 1: Algo Agent's Top 10
+        'auto',          # Tab 2: Auto Sector
+        'finance',       # Tab 3: Finance/Banking
+        'pharma',        # Tab 4: Pharma
+        'metal',         # Tab 5: Metal
+        'power',         # Tab 6: Power
+        'penny'          # Tab 7: Penny Stocks
+    ]
+
+    # Example sector stock lists (replace with real symbols as needed)
+    SECTOR_STOCKS = {
+        'auto': ['MARUTI', 'TATAMOTORS', 'M&M', 'HEROMOTOCO', 'BAJAJ-AUTO'],
+        'finance': ['HDFCBANK', 'ICICIBANK', 'KOTAKBANK', 'AXISBANK', 'SBIN'],
+        'pharma': ['SUNPHARMA', 'CIPLA', 'DIVISLAB', 'DRREDDY', 'AUROPHARMA'],
+        'metal': ['TATASTEEL', 'JSWSTEEL', 'HINDALCO', 'COALINDIA', 'VEDL'],
+        'power': ['NTPC', 'POWERGRID', 'TATAPOWER', 'ADANIGREEN', 'RELIANCE'],
+        'penny': ['SUZLON', 'YESBANK', 'IRFC', 'IDEA', 'PNB']
+    }
+
+    # Tab 1: Algo Agent's Top 10 (dynamic, updated by agent)
+    algo_top10 = []
+
+    def get_watchlist_tab(self, tab: str) -> Dict[str, Any]:
+        """
+        Fetch stocks for a specific watchlist tab.
+        Args:
+            tab: Tab name (algo_top10, auto, finance, pharma, metal, power, penny)
+        Returns:
+            Dictionary with tab stocks
+        """
+        if tab == 'algo_top10':
+            # Return Algo Agent's top 10 selections
+            return {'success': True, 'data': self.algo_top10, 'tab': tab}
+        elif tab in self.SECTOR_STOCKS:
+            # Return sector stocks
+            stocks = self.SECTOR_STOCKS[tab]
+            quotes = self._get_mock_quotes(stocks)
+            return {'success': True, 'data': quotes, 'tab': tab}
+        else:
+            return {'success': False, 'data': [], 'error': 'Invalid tab', 'tab': tab}
+
+    def update_algo_top10(self, selections: List[Dict[str, Any]]):
+        """
+        Update Algo Agent's Top 10 selections (Tab 1)
+        Args:
+            selections: List of top 10 stock dicts
+        """
+        self.algo_top10 = selections[:10]
 
     def get_historical_data(self, symbol: str, days: int = 30) -> Dict[str, Any]:
         """
