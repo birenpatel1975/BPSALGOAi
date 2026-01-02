@@ -88,6 +88,9 @@
                         <div id="liveStatsContent" style="font-size:14px; color:#fff; margin-top:2px;"></div>
                     </div>
                 </div>
+                <div id="algoTicker" style="margin:8px 0; padding:10px; background:#0f172a; color:#e2e8f0; border-radius:8px; font-weight:600;">
+                    <span>Ticker:</span> <span id="tickerText">Waiting for agent...</span>
+                </div>
                 <!-- Algo Agent Control (moved here) -->
                 <div class="algo-controls" style="display: flex; align-items: center; gap: 16px; margin-bottom: 10px;">
                     <button id="startBtn" class="btn btn-start">
@@ -131,6 +134,20 @@
                 </div>
                 <div id="marketData" class="market-data">
                     <p class="placeholder">Click refresh to load market data...</p>
+                </div>
+
+                <div style="display:flex; gap:16px; margin-top:16px; flex-wrap:wrap;">
+                    <div style="flex:1; min-width:320px;">
+                        <h3>Prioritized Opportunities</h3>
+                        <table id="opportunitiesTable" class="data-table">
+                            <thead><tr><th>Symbol</th><th>Price</th><th>Change %</th><th>Score</th></tr></thead>
+                            <tbody><tr><td colspan="4" style="text-align:center; padding:12px;">Waiting for agent...</td></tr></tbody>
+                        </table>
+                    </div>
+                    <div style="flex:1; min-width:320px;">
+                        <h3>Live Feed</h3>
+                        <div id="liveFeed" style="height:260px; overflow:auto; background:#0f172a; color:#e2e8f0; padding:10px; border-radius:8px; font-size:14px;"></div>
+                    </div>
                 </div>
             </section>
 

@@ -55,6 +55,33 @@ def algo_stock_graph(symbol):
         logger.error(f"Error fetching stock graph for {symbol}: {e}")
         return jsonify({'success': False, 'error': str(e), 'data': []})
 
+@api_bp.route('/algo/feed', methods=['GET'])
+def algo_feed():
+    """Live activity feed for Algo Agent."""
+    try:
+        return jsonify({'success': True, 'feed': algo_agent.get_feed()})
+    except Exception as e:
+        logger.error(f"Error fetching algo feed: {e}")
+        return jsonify({'success': False, 'error': str(e), 'feed': []})
+
+@api_bp.route('/algo/opportunities', methods=['GET'])
+def algo_opportunities():
+    """Ranked opportunities from Algo Agent scan."""
+    try:
+        return jsonify({'success': True, 'data': algo_agent.get_opportunities()})
+    except Exception as e:
+        logger.error(f"Error fetching opportunities: {e}")
+        return jsonify({'success': False, 'error': str(e), 'data': []})
+
+@api_bp.route('/algo/ticker', methods=['GET'])
+def algo_ticker():
+    """Ticker text summarizing live actions."""
+    try:
+        return jsonify({'success': True, 'ticker': algo_agent.get_ticker()})
+    except Exception as e:
+        logger.error(f"Error fetching ticker: {e}")
+        return jsonify({'success': False, 'error': str(e), 'ticker': ''})
+
 # ==================== Main Routes ====================
 
 @main_bp.route('/')

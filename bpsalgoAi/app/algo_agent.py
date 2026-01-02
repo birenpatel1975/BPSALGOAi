@@ -26,6 +26,9 @@ class AlgoAgent:
         self.trade_count = 0
         self.logs = []
         self.trade_mode = 'paper'  # 'paper' or 'live'
+        self.feed = []            # live activity feed (strings)
+        self.opportunities = []   # prioritized list of opportunities
+        self.ticker_text = ''
         
     def start(self, trade_mode: str = None) -> Dict[str, Any]:
         """Start the Algo Agent, optionally setting trade mode ('paper', 'live', or 'backtest')"""
@@ -116,65 +119,70 @@ class AlgoAgent:
         }
     
     def _run_algorithm(self):
-        """Main algorithm loop: scan watchlist, execute trade, rescan after close."""
+        """Main algorithm loop: scan every second, rank opportunities, trade first pick."""
         import time
+
         scanned_symbols = set()
+        fallback_symbols = ['NIFTY50', 'BANKNIFTY', 'FINNIFTY']
+
         while self.is_running:
             try:
-                # Step 1: Fetch watchlist
-                self.log_action("Fetching watchlist for scan...")
+                # Pull freshest market movers/watchlist from API
                 watchlist_resp = self.api_client.get_watchlist()
-                if not watchlist_resp['success'] or not watchlist_resp['data']:
-                    self.log_action(f"Failed to fetch watchlist: {watchlist_resp.get('error')}")
-                    time.sleep(10)
-                    continue
-                watchlist = watchlist_resp['data']
-                # Step 2: Find best performer (highest % change)
-                best_stock = None
-                best_change = float('-inf')
-                for item in watchlist:
-                    change = float(item.get('change', item.get('pchange', 0)))
-                    if item.get('symbol') and change > best_change and item['symbol'] not in scanned_symbols:
-                        best_stock = item
-                        best_change = change
-                if not best_stock:
-                    self.log_action("No new rallying stock found in watchlist.")
-                    time.sleep(10)
-                    continue
-                symbol = best_stock['symbol']
-                price = best_stock.get('price', best_stock.get('ltp', 0))
-                self.log_action(f"Selected for trade: {symbol} with change {best_change}% at price {price}")
-                scanned_symbols.add(symbol)
-                # Step 3: Execute trade (paper/live)
-                trade_type = 'BUY' if best_change > 0 else 'SELL'
-                strike_price = price
-                self.log_action(f"Executing {self.trade_mode.upper()} trade: {trade_type} {symbol} at {strike_price}")
-                if self.trade_mode == 'live':
-                    order_data = {
-                        'symbol': symbol,
-                        'side': trade_type,
-                        'quantity': 1,
-                        'order_type': 'MARKET',
-                        'product': 'CNC',
-                    }
-                    order_resp = self.api_client.place_order(order_data)
-                    self.log_action(f"LIVE TRADE: {trade_type} {symbol} resp={order_resp}")
-                else:
-                    self.log_action(f"PAPER TRADE: {trade_type} {symbol} at {strike_price}")
-                self.trade_count += 1
-                # Step 4: Simulate/monitor trade close, then rescan
-                self.log_action(f"Monitoring trade for {symbol}...")
-                time.sleep(10)  # Simulate holding period
-                # For demo, close trade after wait
-                close_price = price + (price * 0.01 if trade_type == 'BUY' else -price * 0.01)
-                pnl = close_price - strike_price if trade_type == 'BUY' else strike_price - close_price
-                self.log_action(f"Trade closed for {symbol}. Close price: {close_price}, P&L: {pnl:.2f}")
-                # Step 5: Rescan for new stock
-                self.log_action("Rescanning watchlist for new opportunities...")
-                time.sleep(5)
+                symbols_payload = []
+                if watchlist_resp.get('success') and watchlist_resp.get('data'):
+                    symbols_payload = watchlist_resp['data']
+
+                # If still empty, fall back to mock live data
+                if not symbols_payload:
+                    live_data = self.api_client.get_live_data(fallback_symbols)
+                    if live_data.get('success') and 'data' in live_data and isinstance(live_data['data'], dict):
+                        symbols_payload = live_data['data'].get('symbols', [])
+                    else:
+                        self.log_action("Live data unavailable; running backtest fallback")
+                        self._run_backtest()
+                        break
+
+                # Build opportunities with a simple scoring from available fields
+                opps = []
+                for item in symbols_payload:
+                    sym = item.get('symbol') or item.get('symbol_name') or item.get('display_name')
+                    price = item.get('ltp') or item.get('price') or item.get('Price') or item.get('close') or 0
+                    change = item.get('per_change') or item.get('pchange') or item.get('change') or 0
+                    volume = item.get('volume') or item.get('Volume') or 0
+                    score = (float(change or 0) * 2) + (float(volume or 0) * 0.0001)
+                    opps.append({
+                        'symbol': sym,
+                        'price': price,
+                        'change': change,
+                        'volume': volume,
+                        'score': round(score, 3)
+                    })
+
+                opps = sorted([o for o in opps if o.get('symbol')], key=lambda x: x['score'], reverse=True)
+                self.opportunities = opps[:20]
+
+                # Update ticker and feed
+                top_ticker = ', '.join([f"{o['symbol']} {o['change']}%" for o in self.opportunities[:5]])
+                self.ticker_text = f"Live: {top_ticker}" if top_ticker else "Scanning..."
+                self._push_feed(f"Scanned {len(symbols_payload)} symbols; top: {top_ticker or 'none'}")
+
+                # Trade first pick if available
+                if self.opportunities:
+                    pick = self.opportunities[0]
+                    sym = pick['symbol']
+                    if sym not in scanned_symbols:
+                        trade_type = 'BUY' if float(pick.get('change') or 0) >= 0 else 'SELL'
+                        self._execute_trade(sym, trade_type, pick.get('price'))
+                        scanned_symbols.add(sym)
+
+                # Wait 1 second before next scan
+                time.sleep(1)
+
             except Exception as e:
-                logger.error(f"Error in algorithm loop: {str(e)}")
+                logger.error(f"Error in algorithm loop: {str(e)}", exc_info=True)
                 self.log_action(f"Error: {str(e)}")
+                time.sleep(2)
     
     def _analyze_and_trade(self, market_data: Dict[str, Any]):
         """
@@ -227,6 +235,44 @@ class AlgoAgent:
         # Keep only last 100 logs
         if len(self.logs) > 100:
             self.logs = self.logs[-100:]
+
+    def _push_feed(self, message: str):
+        """Append to live feed and keep it short."""
+        ts = datetime.now().strftime('%H:%M:%S')
+        entry = f"[{ts}] {message}"
+        self.feed.append(entry)
+        if len(self.feed) > 200:
+            self.feed = self.feed[-200:]
+
+    def _execute_trade(self, symbol: str, side: str, price: float):
+        """Execute a paper/live trade and log it."""
+        self._push_feed(f"Signal: {side} {symbol} @ {price}")
+        self.log_action(f"Executing {self.trade_mode.upper()} trade: {side} {symbol} @ {price}")
+        if self.trade_mode == 'live':
+            order_data = {
+                'symbol': symbol,
+                'side': side,
+                'quantity': 1,
+                'order_type': 'MARKET',
+                'product': 'CNC',
+            }
+            order_resp = self.api_client.place_order(order_data)
+            self._push_feed(f"Live order response: {order_resp}")
+        else:
+            self._push_feed("Paper trade recorded")
+        self.trade_count += 1
+
+    def get_feed(self):
+        """Return recent feed entries."""
+        return self.feed[-100:]
+
+    def get_opportunities(self):
+        """Return current ranked opportunities."""
+        return self.opportunities
+
+    def get_ticker(self):
+        """Return current ticker text."""
+        return self.ticker_text or "Scanning..."
     
     def get_status(self) -> Dict[str, Any]:
         """Get agent status"""
@@ -238,31 +284,53 @@ class AlgoAgent:
             'trade_count': self.trade_count,
             'trade_mode': self.trade_mode,
             'logs': self.logs[-50:],  # last 50 log entries
-            'stats': stats if stats else None
+            'stats': stats if stats else None,
+            'feed': self.get_feed(),
+            'opportunities': self.opportunities,
+            'ticker': self.get_ticker()
         }
 
     # --- New: Algo Agent Watchlist Info for UI ---
     def get_watchlist_info(self):
         """
         Return a list of dicts for all stocks Algo Agent is tracking, with:
-        symbol, last_close, low, high, price, volume_change
+        symbol, last_close, low, high, price, volume_change, change_pct, open, prev_close
         """
-        # For demo, use mock data or fetch from self.api_client.get_live_data
-        symbols = ['NIFTY50', 'BANKNIFTY', 'FINNIFTY']
-        live = self.api_client.get_live_data(symbols)
-        result = []
-        if live['success'] and 'data' in live and 'symbols' in live['data']:
-            for item in live['data']['symbols']:
-                # Simulate last_close, low, high, price, volume_change
-                result.append({
-                    'symbol': item.get('symbol'),
-                    'last_close': item.get('open', 0),
-                    'low': item.get('low', 0),
-                    'high': item.get('high', 0),
-                    'price': item.get('ltp', 0),
-                    'volume_change': item.get('volume', 0),
-                })
-        return result
+        watchlist_resp = self.api_client.get_watchlist()
+        items = watchlist_resp.get('data') if watchlist_resp.get('success') else []
+
+        # Fallback to mock live data if watchlist is empty
+        if not items:
+            symbols = ['NIFTY50', 'BANKNIFTY', 'FINNIFTY']
+            live = self.api_client.get_live_data(symbols)
+            if live.get('success') and 'data' in live and 'symbols' in live['data']:
+                items = live['data']['symbols']
+
+        normalized = []
+        for item in items or []:
+            symbol = item.get('symbol') or item.get('symbol_name') or item.get('display_name')
+            ltp = item.get('ltp') or item.get('price') or item.get('Price')
+            open_ = item.get('Open') or item.get('open')
+            high = item.get('High') or item.get('high')
+            low = item.get('Low') or item.get('low')
+            prev_close = item.get('Pclose') or item.get('close')
+            change_pct = item.get('per_change') or item.get('pchange') or item.get('change')
+            volume = item.get('volume') or item.get('Volume')
+            normalized.append({
+                'symbol': symbol,
+                'last_close': prev_close or open_ or ltp,
+                'low': low,
+                'high': high,
+                'price': ltp,
+                'volume_change': volume,
+                'open': open_,
+                'prev_close': prev_close,
+                'change_pct': change_pct,
+            })
+
+        # Sort by change descending to emulate “top movers”
+        normalized = sorted(normalized, key=lambda x: float(x.get('change_pct') or 0), reverse=True)
+        return normalized
 
     # --- New: Mini-graph data for selected stock ---
     def get_stock_graph(self, symbol, interval):

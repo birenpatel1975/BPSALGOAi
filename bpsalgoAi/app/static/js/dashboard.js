@@ -349,6 +349,9 @@ async function updateAgentStatus() {
                     }
                 });
             }
+
+            // Update live panels from status payload
+            renderAlgoLivePanels(data);
         }
     } catch (error) {
         console.error('Error updating agent status:', error);
@@ -900,11 +903,22 @@ watchlistTabs.forEach(btn => {
     });
 });
 
+if (watchlistTabs && watchlistTabs.length) {
+    setActiveWatchlistTab(currentWatchlistTab);
+}
+
 function fetchWatchlistTab(tab) {
     if (!watchlistTabContent) {
         addLog('Watchlist content area not found. Please reload the page.', 'error');
         return;
     }
+
+    if (tab === 'algo_top10') {
+        watchlistTabContent.innerHTML = '<p class="placeholder">Loading Algo watchlist...</p>';
+        fetchAlgoWatchlist();
+        return;
+    }
+
     watchlistTabContent.innerHTML = '<p class="placeholder">Loading...</p>';
     let endpoint = `${API_BASE}/watchlist/tab/${tab}`;
     if (tab === 'user') {
@@ -1019,13 +1033,33 @@ if (miniGraphIntervalSelect) {
 
 // --- Watchlist table click handler ---
 function displayAlgoWatchlistTable(stocks) {
-    let html = `<table class="watchlist-table"><thead><tr><th>Symbol</th><th>Last Close</th><th>Low</th><th>High</th><th>Price</th><th>Volume</th></tr></thead><tbody>`;
+    let html = `<table class="watchlist-table"><thead><tr>
+        <th>Symbol</th><th>LTP</th><th>Change %</th><th>Open</th><th>High</th><th>Low</th><th>Prev Close</th><th>Volume</th>
+    </tr></thead><tbody>`;
     stocks.forEach(stock => {
-        html += `<tr class="watchlist-row" data-symbol="${stock.symbol}"><td>${stock.symbol}</td><td>${stock.last_close}</td><td>${stock.low}</td><td>${stock.high}</td><td>${stock.price}</td><td>${stock.volume_change}</td></tr>`;
+        const ltp = stock.price ?? stock.ltp ?? '-';
+        const changeRaw = stock.change_pct ?? stock.change ?? '-';
+        const changeNum = isFinite(parseFloat(changeRaw)) ? parseFloat(changeRaw) : null;
+        const changeText = changeNum !== null ? `${changeNum.toFixed(2)}%` : (changeRaw ?? '-');
+        const changeColor = changeNum > 0 ? 'green' : changeNum < 0 ? 'red' : '#e2e8f0';
+        const open = stock.open ?? '-';
+        const high = stock.high ?? '-';
+        const low = stock.low ?? '-';
+        const prevClose = stock.prev_close ?? stock.last_close ?? '-';
+        const volume = stock.volume_change ?? stock.volume ?? '-';
+        html += `<tr class="watchlist-row" data-symbol="${stock.symbol}">
+            <td>${stock.symbol}</td>
+            <td>${ltp}</td>
+            <td style="color:${changeColor};font-weight:600;">${changeText}</td>
+            <td>${open}</td>
+            <td>${high}</td>
+            <td>${low}</td>
+            <td>${prevClose}</td>
+            <td>${volume}</td>
+        </tr>`;
     });
     html += '</tbody></table>';
     if (watchlistTabContent) watchlistTabContent.innerHTML = html;
-    // Add click listeners
     document.querySelectorAll('.watchlist-row').forEach(row => {
         row.addEventListener('click', function() {
             showMiniGraph(this.dataset.symbol);
@@ -1035,13 +1069,19 @@ function displayAlgoWatchlistTable(stocks) {
 
 // --- Algo Agent Watchlist fetch/refresh ---
 function fetchAlgoWatchlist() {
+    if (currentWatchlistTab !== 'algo_top10') return;
     fetch('/api/algo/watchlist')
         .then(res => res.json())
         .then(data => {
             if (data.success && Array.isArray(data.data)) {
                 displayAlgoWatchlistTable(data.data);
-            } else {
-                if (watchlistTabContent) watchlistTabContent.innerHTML = `<p class="placeholder">Error loading watchlist: ${data.error || 'Unknown error'}</p>`;
+            } else if (watchlistTabContent) {
+                watchlistTabContent.innerHTML = `<p class="placeholder">Error loading watchlist: ${data.error || 'Unknown error'}</p>`;
+            }
+        })
+        .catch(err => {
+            if (watchlistTabContent && currentWatchlistTab === 'algo_top10') {
+                watchlistTabContent.innerHTML = `<p class="placeholder">Error loading watchlist: ${err.message}</p>`;
             }
         });
 }
@@ -1050,5 +1090,56 @@ function fetchAlgoWatchlist() {
 setInterval(fetchAlgoWatchlist, 10000);
 // Initial load
 fetchAlgoWatchlist();
+
+// --- Algo Agent live ticker, opportunities, and feed ---
+const tickerTextEl = document.getElementById('tickerText');
+const opportunitiesTable = document.getElementById('opportunitiesTable');
+const liveFeedEl = document.getElementById('liveFeed');
+
+function renderAlgoLivePanels(data) {
+    if (tickerTextEl && data && data.ticker !== undefined) {
+        tickerTextEl.textContent = data.ticker || 'Scanning...';
+    }
+
+    if (opportunitiesTable) {
+        const tbody = opportunitiesTable.querySelector('tbody');
+        if (tbody) {
+            const items = Array.isArray(data && data.opportunities) ? data.opportunities : [];
+            if (items.length) {
+                tbody.innerHTML = items.slice(0, 15).map(o => {
+                    const changeNum = isFinite(parseFloat(o.change)) ? parseFloat(o.change) : null;
+                    const changeText = changeNum !== null ? `${changeNum.toFixed(2)}%` : (o.change ?? '-');
+                    return `
+                        <tr>
+                            <td>${o.symbol || '-'}</td>
+                            <td>${o.price ?? '-'}</td>
+                            <td>${changeText}</td>
+                            <td>${o.score ?? '-'}</td>
+                        </tr>`;
+                }).join('');
+            } else {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:12px;">No opportunities yet</td></tr>';
+            }
+        }
+    }
+
+    if (liveFeedEl && data && Array.isArray(data.feed)) {
+        liveFeedEl.innerHTML = data.feed.map(line => `<div>${line}</div>`).join('');
+        liveFeedEl.scrollTop = liveFeedEl.scrollHeight;
+    }
+}
+
+async function pollAlgoLivePanels() {
+    try {
+        const resp = await fetch(`${API_BASE}/algo/status`);
+        const data = await resp.json();
+        renderAlgoLivePanels(data);
+    } catch (e) {
+        // ignore transient errors
+    }
+}
+
+setInterval(pollAlgoLivePanels, 2000);
+pollAlgoLivePanels();
 
 // Ensure all functions and the file are properly closed
