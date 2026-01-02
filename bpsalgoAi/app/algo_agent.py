@@ -49,6 +49,7 @@ class AlgoAgent:
             self.thread = threading.Thread(target=self._run_algorithm, daemon=True)
         self.thread.start()
         self.log_action(f"Algo Agent started in {self.trade_mode.upper()} mode")
+        self._push_feed(f"Agent started ({self.trade_mode})")
         return {
             'success': True,
             'message': f'Algo Agent started successfully in {self.trade_mode.upper()} mode',
@@ -139,15 +140,16 @@ class AlgoAgent:
                 if watchlist_resp.get('success') and watchlist_resp.get('data'):
                     symbols_payload = watchlist_resp['data']
 
-                # If still empty, fall back to mock live data
+                # If still empty, fall back to mock live data (stay running instead of stopping)
                 if not symbols_payload:
                     live_data = self.api_client.get_live_data(fallback_symbols)
                     if live_data.get('success') and 'data' in live_data and isinstance(live_data['data'], dict):
                         symbols_payload = live_data['data'].get('symbols', [])
-                    else:
-                        self.log_action("Live data unavailable; running backtest fallback")
-                        self._run_backtest()
-                        break
+                    if not symbols_payload:
+                        # No data at all; wait and retry without exiting the agent
+                        self.log_action("Live data unavailable; retrying...")
+                        time.sleep(2)
+                        continue
 
                 # Build opportunities with a simple scoring from available fields
                 opps = []
@@ -188,6 +190,9 @@ class AlgoAgent:
                         trade_type = 'BUY' if float(pick.get('change') or 0) >= 0 else 'SELL'
                         self._execute_trade(sym, trade_type, pick.get('price'))
                         scanned_symbols.add(sym)
+
+                # Stamp last execution so status endpoint shows activity
+                self.last_execution = datetime.now()
 
                 # Wait 1 second before next scan
                 time.sleep(1)
@@ -353,16 +358,4 @@ class AlgoAgent:
         normalized = sorted(normalized, key=lambda x: float(x.get('change_pct') or 0), reverse=True)
         return normalized
 
-    # --- New: Mini-graph data for selected stock ---
-    def get_stock_graph(self, symbol, interval):
-        """
-        Return mock price data for 1/5/10/15 min intervals for mini-graph.
-        """
-        import random, datetime
-        now = datetime.datetime.now()
-        data = []
-        for i in range(60):
-            t = now - datetime.timedelta(minutes=interval * (59 - i))
-            price = 100 + random.uniform(-2, 2) * i / 10
-            data.append({'time': t.strftime('%H:%M'), 'price': round(price, 2)})
-        return data
+    # Mini-graph logic removed; no longer supported

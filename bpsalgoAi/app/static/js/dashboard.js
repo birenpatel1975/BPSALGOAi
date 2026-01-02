@@ -170,8 +170,8 @@ function setupUnlockedSections() {
     // Set up event listeners for unlocked sections
     if (startBtn) startBtn.addEventListener('click', startAlgoAgent);
     if (stopBtn) stopBtn.addEventListener('click', stopAlgoAgent);
-    refreshDataBtn.addEventListener('click', refreshMarketData);
-    refreshAccountBtn.addEventListener('click', refreshAccountInfo);
+    if (refreshDataBtn) refreshDataBtn.addEventListener('click', refreshMarketData);
+    if (refreshAccountBtn) refreshAccountBtn.addEventListener('click', refreshAccountInfo);
     if (refreshWatchlistBtn) refreshWatchlistBtn.addEventListener('click', refreshWatchlist);
     // Paper/Live trade toggle logic
     if (paperTradeToggle && paperTradeLabel) {
@@ -249,12 +249,14 @@ function setupUnlockedSections() {
  */
 async function startAlgoAgent() {
     try {
-        startBtn.disabled = true;
+        if (startBtn) startBtn.disabled = true;
         // Reset agent status for new session (preserve activity log history)
-        agentStatus.textContent = 'STARTING...';
-        agentStatus.className = 'status-value';
-        lastExecution.textContent = '-';
-        tradeCount.textContent = '0';
+        if (agentStatus) {
+            agentStatus.textContent = 'STARTING...';
+            agentStatus.className = 'status-value';
+        }
+        if (lastExecution) lastExecution.textContent = '-';
+        if (tradeCount) tradeCount.textContent = '0';
         if (activityLog) activityLog.innerHTML = '';
         addLog('Starting Algo Agent. The system will now scan for top stocks and begin trading automatically.', 'info');
         // Determine trade mode from toggles
@@ -283,6 +285,23 @@ async function startAlgoAgent() {
                 ' mode',
                 'success'
             );
+            // Flip to live interactive page with feed and picks
+            window.location.hash = '#live';
+            const dashboardTabs = document.getElementById('dashboardTabs');
+            const marketMoversPage = document.getElementById('marketMoversPage');
+            if (dashboardTabs) dashboardTabs.style.display = 'none';
+            if (marketMoversPage) marketMoversPage.style.display = 'block';
+            // Auto-select Algo Top 10 tab and trigger live feed refresh
+            const watchlistTabs = document.querySelectorAll('.watchlist-tab');
+            watchlistTabs.forEach(btn => {
+                btn.classList.remove('active');
+            });
+            const top10Btn = document.querySelector('.watchlist-tab[data-tab="algo_top10"]');
+            if (top10Btn) {
+                top10Btn.classList.add('active');
+                setActiveWatchlistTab('algo_top10');
+            }
+            addLog('Agent started, flipped to live page and loaded Algo Top 10 tab.', 'info');
         } else {
             addLog('❌ Failed to start Algo Agent: ' + data.message, 'error');
         }
@@ -329,12 +348,14 @@ async function updateAgentStatus() {
         const response = await fetch(`${API_BASE}/algo/status`, { method: 'GET' });
         const data = await response.json();
         if (data) {
-            agentStatus.textContent = data.status || '-';
-            agentStatus.className = 'status-value ' + (data.status === 'RUNNING' ? 'status-running' : 'status-stopped');
-            lastExecution.textContent = data.last_execution ? formatDateTime(data.last_execution) : '-';
-            tradeCount.textContent = data.trade_count || '0';
+            if (agentStatus) {
+                agentStatus.textContent = data.status || '-';
+                agentStatus.className = 'status-value ' + (data.status === 'RUNNING' ? 'status-running' : 'status-stopped');
+            }
+            if (lastExecution) lastExecution.textContent = data.last_execution ? formatDateTime(data.last_execution) : '-';
+            if (tradeCount) tradeCount.textContent = data.trade_count || '0';
             // Show logs
-            if (data.logs && Array.isArray(data.logs)) {
+            if (data.logs && Array.isArray(data.logs) && activityLog) {
                 activityLog.innerHTML = '';
                 data.logs.forEach(log => addLog(log, 'info'));
             }
@@ -350,12 +371,14 @@ async function updateAgentStatus() {
             }
 
             // Update button states
-            if (data.is_running) {
-                startBtn.disabled = true;
-                stopBtn.disabled = false;
-            } else {
-                startBtn.disabled = false;
-                stopBtn.disabled = true;
+            if (startBtn && stopBtn) {
+                if (data.is_running) {
+                    startBtn.disabled = true;
+                    stopBtn.disabled = false;
+                } else {
+                    startBtn.disabled = false;
+                    stopBtn.disabled = true;
+                }
             }
 
             // Add recent logs
@@ -382,15 +405,12 @@ async function updateAgentStatus() {
  */
 async function refreshMarketData() {
     try {
-        refreshDataBtn.disabled = true;
+        if (refreshDataBtn) refreshDataBtn.disabled = true;
         addLog('Fetching live market data...', 'info');
-        
         const response = await fetch(`${API_BASE}/market/live`, {
             method: 'GET'
         });
-        
         const data = await response.json();
-        
         if (data.success) {
             displayMarketData(data.data);
             addLog('✅ Market data loaded', 'success');
@@ -401,11 +421,10 @@ async function refreshMarketData() {
                 displayMarketData(data.data);
             }
         }
-        
-        refreshDataBtn.disabled = false;
+        if (refreshDataBtn) refreshDataBtn.disabled = false;
     } catch (error) {
         addLog('❌ Error fetching market data: ' + error.message, 'error');
-        refreshDataBtn.disabled = false;
+        if (refreshDataBtn) refreshDataBtn.disabled = false;
     }
 }
 
@@ -413,23 +432,20 @@ async function refreshMarketData() {
  * Display Market Data
  */
 function displayMarketData(data) {
+    if (!marketData) return;
     marketData.innerHTML = '';
-    
     if (data && data.symbols && Array.isArray(data.symbols)) {
         data.symbols.forEach(symbol => {
             const item = document.createElement('div');
             item.className = 'market-item';
-            
             const change = parseFloat(symbol.change) || 0;
             const changeClass = change > 0 ? 'positive' : change < 0 ? 'negative' : '';
             const changeSign = change > 0 ? '+' : '';
-            
             item.innerHTML = `
                 <div class="market-item-symbol">${symbol.symbol}</div>
                 <div class="market-item-price">$${parseFloat(symbol.price).toFixed(2)}</div>
                 <div class="market-item-change ${changeClass}">${changeSign}${change.toFixed(2)}%</div>
             `;
-            
             marketData.appendChild(item);
         });
     } else {
@@ -537,7 +553,7 @@ async function loadConfig() {
  * Add Log Entry
  */
 function addLog(message, type = 'info') {
-    if (!activityLog) return;
+    if (!activityLog) { console.log(message); return; }
     let color = '#fff';
     if (type === 'error') color = '#e53e3e';
     if (type === 'success') color = '#38a169';

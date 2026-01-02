@@ -52,14 +52,30 @@ class MStockAPI:
         Returns:
             Dictionary with tab stocks
         """
+        def normalize(items):
+            norm = []
+            for q in items:
+                norm.append({
+                    'symbol': q.get('symbol') or q.get('trading_symbol') or q.get('symbol_name') or q.get('display_name') or 'N/A',
+                    'ltp': q.get('ltp') or q.get('price') or q.get('last_price') or q.get('last') or q.get('LTP'),
+                    'open': q.get('open') or q.get('Open'),
+                    'high': q.get('high') or q.get('High'),
+                    'low': q.get('low') or q.get('Low'),
+                    'volume': q.get('volume') or q.get('Volume'),
+                    'change': q.get('change') or q.get('per_change') or q.get('pchange'),
+                    'pchange': q.get('per_change') or q.get('pchange') or q.get('change'),
+                    'price': q.get('ltp') or q.get('price') or q.get('last_price')
+                })
+            return norm
+
         if tab == 'algo_top10':
-            # Return Algo Agent's top 10 selections
-            return {'success': True, 'data': self.algo_top10, 'tab': tab}
+            # Return Algo Agent's top 10 selections, normalized
+            return {'success': True, 'data': normalize(self.algo_top10), 'tab': tab}
         elif tab in self.SECTOR_STOCKS:
             # Return sector stocks; prefer live quotes when authenticated
             stocks = self.SECTOR_STOCKS[tab]
             quotes = self._get_live_or_mock_quotes(stocks)
-            return {'success': True, 'data': quotes, 'tab': tab}
+            return {'success': True, 'data': normalize(quotes), 'tab': tab}
         else:
             return {'success': False, 'data': [], 'error': 'Invalid tab', 'tab': tab}
 
