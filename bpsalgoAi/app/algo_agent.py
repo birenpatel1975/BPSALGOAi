@@ -123,7 +123,7 @@ class AlgoAgent:
         import time
 
         scanned_symbols = set()
-        fallback_symbols = ['NIFTY50', 'BANKNIFTY', 'FINNIFTY']
+        fallback_symbols = ['NIFTY50', 'NIFTYBANK', 'BANKNIFTY', 'FINNIFTY']
 
         def _calc_strike(val):
             try:

@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 MOCK_MARKET_DATA = {
     'NIFTY50': {'symbol': 'NIFTY50', 'ltp': 23500.00, 'open': 23400.00, 'high': 23650.00, 'low': 23350.00, 'volume': 150000000},
     'BANKNIFTY': {'symbol': 'BANKNIFTY', 'ltp': 47800.00, 'open': 47600.00, 'high': 48100.00, 'low': 47500.00, 'volume': 80000000},
+    'NIFTYBANK': {'symbol': 'NIFTYBANK', 'ltp': 47800.00, 'open': 47600.00, 'high': 48100.00, 'low': 47500.00, 'volume': 80000000},
     'FINNIFTY': {'symbol': 'FINNIFTY', 'ltp': 21450.00, 'open': 21350.00, 'high': 21600.00, 'low': 21300.00, 'volume': 50000000},
 }
 
@@ -55,9 +56,9 @@ class MStockAPI:
             # Return Algo Agent's top 10 selections
             return {'success': True, 'data': self.algo_top10, 'tab': tab}
         elif tab in self.SECTOR_STOCKS:
-            # Return sector stocks
+            # Return sector stocks; prefer live quotes when authenticated
             stocks = self.SECTOR_STOCKS[tab]
-            quotes = self._get_mock_quotes(stocks)
+            quotes = self._get_live_or_mock_quotes(stocks)
             return {'success': True, 'data': quotes, 'tab': tab}
         else:
             return {'success': False, 'data': [], 'error': 'Invalid tab', 'tab': tab}
@@ -150,29 +151,79 @@ class MStockAPI:
         Returns mock data if real endpoint is not available or not authenticated.
         """
         if symbols is None:
-            symbols = ['NIFTY50', 'BANKNIFTY', 'FINNIFTY']
-        # Always return mock data for demo/testing
+            symbols = ['NIFTY50', 'NIFTYBANK', 'FINNIFTY']
+
+        # Try real API first if authenticated
+        if self.auth and self.auth.is_token_valid():
+            headers = self._get_headers()
+            quotes = []
+            for sym in symbols:
+                try:
+                    endpoint = f"{self.base_url}/market/quote/{urllib.parse.quote(sym)}"
+                    resp = self.session.get(endpoint, headers=headers, timeout=8)
+                    if resp.ok:
+                        payload = resp.json()
+                        # Type A typically returns {'status':'success','data':{...}}
+                        row = payload.get('data') or payload
+                        if row:
+                            row['symbol'] = row.get('symbol') or sym
+                            quotes.append(row)
+                            continue
+                except Exception as e:
+                    logger.debug(f"Quote fetch failed for {sym}: {e}")
+                # fallback per symbol mock if this one fails
+                quotes.append({**MOCK_MARKET_DATA.get(sym, {'symbol': sym}), 'mock': True})
+
+            # Normalize to expected shape
+            norm = []
+            for q in quotes:
+                norm.append({
+                    'symbol': q.get('symbol') or q.get('trading_symbol') or q.get('symbol_name') or q.get('display_name') or 'N/A',
+                    'ltp': q.get('ltp') or q.get('price') or q.get('last_price') or q.get('last') or q.get('LTP'),
+                    'open': q.get('open') or q.get('Open'),
+                    'high': q.get('high') or q.get('High'),
+                    'low': q.get('low') or q.get('Low'),
+                    'volume': q.get('volume') or q.get('Volume'),
+                    'change': q.get('change') or q.get('per_change') or q.get('pchange'),
+                    'pchange': q.get('per_change') or q.get('pchange') or q.get('change'),
+                    'price': q.get('ltp') or q.get('price') or q.get('last_price')
+                })
+            return {'success': True, 'data': {'symbols': norm}, 'mock': False}
+
+        # Fallback to mock data when not authenticated
         data = [MOCK_MARKET_DATA.get(sym, {'symbol': sym, 'ltp': 100.0, 'open': 99.0, 'high': 101.0, 'low': 98.0, 'volume': 1000000}) for sym in symbols]
-        # Add a fake percent change for demo
         import random
         for d in data:
             d['change'] = round(random.uniform(-2, 2), 2)
             d['price'] = d.get('ltp', 100.0)
-        return {
-            'success': True,
-            'data': {'symbols': data},
-            'mock': True
-        }
+        return {'success': True, 'data': {'symbols': data}, 'mock': True}
     
     def get_symbol_quote(self, symbol: str) -> Dict[str, Any]:
         """
         Get full quote for a single symbol
         Returns mock data for demo/testing.
         """
+        # Try real API first if authenticated
+        if self.auth and self.auth.is_token_valid():
+            try:
+                endpoint = f"{self.base_url}/market/quote/{urllib.parse.quote(symbol)}"
+                resp = self.session.get(endpoint, headers=self._get_headers(), timeout=8)
+                if resp.ok:
+                    payload = resp.json()
+                    data = payload.get('data') or payload
+                    if data:
+                        data['symbol'] = data.get('symbol') or symbol
+                        return {**data, 'success': True, 'mock': False}
+            except Exception as e:
+                logger.warning(f"Live quote fetch failed for {symbol}: {e}")
+
+        # Fallback to mock
         try:
             d = MOCK_MARKET_DATA.get(symbol, {'symbol': symbol, 'ltp': 100.0, 'open': 99.0, 'high': 101.0, 'low': 98.0, 'volume': 1000000})
             d['change'] = round(random.uniform(-2, 2), 2)
             d['price'] = d.get('ltp', 100.0)
+            d['mock'] = True
+            d['success'] = True
             return d
         except Exception as e:
             logger.warning(f"Error fetching quote for {symbol}: {str(e)}")
@@ -258,6 +309,13 @@ class MStockAPI:
             Dictionary with watchlist data and symbols
         """
         try:
+            # If authenticated, fetch fresh quotes for indices as a proxy watchlist
+            if self.auth and self.auth.is_token_valid():
+                live = self.get_live_data(list(MOCK_MARKET_DATA.keys()))
+                if live.get('success') and live.get('data'):
+                    symbols = live['data'].get('symbols', [])
+                    return {'success': True, 'data': symbols, 'mock': live.get('mock', False)}
+
             movers = []
             for sym, d in MOCK_MARKET_DATA.items():
                 movers.append({
@@ -274,6 +332,16 @@ class MStockAPI:
         except Exception as e:
             logger.error(f"Error fetching watchlist: {str(e)}")
             return {'success': False, 'error': str(e), 'data': []}
+
+    def _get_live_or_mock_quotes(self, symbols: List[str]) -> List[Dict[str, Any]]:
+        """Helper: prefer live quotes via get_live_data, else mock fallback."""
+        try:
+            live = self.get_live_data(symbols)
+            if live.get('success') and live.get('data'):
+                return live['data'].get('symbols', [])
+        except Exception:
+            logger.debug("Falling back to mock quotes", exc_info=True)
+        return self._get_mock_quotes(symbols)
 
     # --- Option Chain (stub/mock) ---
     def get_option_chain_master(self, exch: str) -> Dict[str, Any]:

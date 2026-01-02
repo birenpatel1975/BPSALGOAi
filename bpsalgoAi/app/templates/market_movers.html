@@ -40,40 +40,8 @@
                 <button class="watchlist-tab" data-tab="penny">Penny Stocks</button>
                 <button id="viewAlgoPicksBtn" class="btn btn-small" style="margin-left:auto;">⚡ View Algo Picks</button>
             </div>
-            <div class="watchlist-layout" style="flex-wrap:nowrap;">
-                <div class="watchlist-left" style="min-width:460px;">
-                    <div id="watchlistTabContent" class="watchlist-data watchlist-table-wrapper" style="max-height:620px;overflow:auto;">
-                        <p class="placeholder">Select a tab to view stocks...</p>
-                    </div>
-                </div>
-                <div class="watchlist-right" style="flex:1;min-width:520px;">
-                    <div id="miniGraphContainer" class="mini-graph-card">
-                        <div class="mini-graph-header">
-                            <div>
-                                <span id="miniGraphTitle" class="mini-graph-title">Select a stock to view mini-graph</span>
-                                <div id="miniGraphPlaceholder" class="mini-graph-placeholder">Choose any row to see its price action.</div>
-                            </div>
-                            <label class="mini-graph-interval">Interval:
-                                <select id="miniGraphInterval">
-                                    <option value="1">1 min</option>
-                                    <option value="5">5 min</option>
-                                    <option value="10">10 min</option>
-                                    <option value="15">15 min</option>
-                                </select>
-                            </label>
-                            <a id="openChartPage" class="btn btn-small" href="#" target="_blank" style="margin-left:8px;">Open Chart Page</a>
-                        </div>
-                        <div class="mini-graph-canvas-wrap">
-                            <canvas id="miniGraph" width="620" height="320"></canvas>
-                        </div>
-                        <div id="optionChainBox" class="option-chain-box">
-                            <div class="option-chain-header">Option Chain Snapshot (ATM/ITM/OTM)</div>
-                            <div id="optionChainContent" class="option-chain-content">
-                                <p class="placeholder" style="padding:12px;">Select a symbol to load option chain.</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+            <div class="watchlist-data watchlist-table-wrapper" id="watchlistTabContent" style="max-height:560px;overflow:auto;">
+                <p class="placeholder">Select a tab to view stocks...</p>
             </div>
         </section>
 

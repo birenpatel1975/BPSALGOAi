@@ -79,6 +79,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Navigation bar logic
         const navDashboard = document.getElementById('navDashboard');
         const navWatchlist = document.getElementById('navWatchlist');
+        const authSection = document.querySelector('.auth-section');
         const mainSections = [
             document.querySelector('.auth-section'),
             document.getElementById('marketSection'),
@@ -113,19 +114,26 @@ document.addEventListener('DOMContentLoaded', function() {
     if (sendOtpBtn) sendOtpBtn.addEventListener('click', sendOtp);
     if (verifyOtpBtn) verifyOtpBtn.addEventListener('click', verifyOtp);
 
+    // If this page has no auth UI (e.g., Market Movers standalone), unlock immediately
+    if (!authSection) {
+        setSectionsLocked(false);
+        if (!window._sectionsUnlocked) {
+            setupUnlockedSections();
+            window._sectionsUnlocked = true;
+        }
+    }
+
     // Show initial auth status and hide auth section if already authenticated
     try {
-        if (cfg && cfg.access_token_valid) {
-            authStatus.textContent = 'Auth: valid';
-            const authSection = document.querySelector('.auth-section');
+        if (typeof cfg !== 'undefined' && cfg && cfg.access_token_valid) {
+            if (authStatus) authStatus.textContent = 'Auth: valid';
             if (authSection) authSection.style.display = 'none';
             setSectionsLocked(false);
-            // Only call setupUnlockedSections if not already set up
             if (!window._sectionsUnlocked) {
                 setupUnlockedSections();
                 window._sectionsUnlocked = true;
             }
-        } else {
+        } else if (authStatus) {
             authStatus.textContent = 'Auth: not authenticated';
         }
     } catch (e) {}
@@ -991,8 +999,9 @@ let symbolMeta = {};
 let selectedSymbolMeta = null;
 
 function showMiniGraph(symbol) {
+    if (!miniGraphCanvas) return; // Chart removed on some pages
     miniGraphSymbol = symbol;
-    miniGraphInterval = parseInt(miniGraphIntervalSelect.value);
+    miniGraphInterval = miniGraphIntervalSelect ? parseInt(miniGraphIntervalSelect.value) : 1;
     const ltp = selectedSymbolMeta && selectedSymbolMeta.price ? selectedSymbolMeta.price : (selectedSymbolMeta && selectedSymbolMeta.ltp);
     miniGraphTitle.textContent = `Mini-Graph: ${symbol}${ltp ? ' @ ' + ltp : ''}`;
     if (miniGraphPlaceholder) miniGraphPlaceholder.textContent = '';
@@ -1003,7 +1012,7 @@ function showMiniGraph(symbol) {
 }
 
 function fetchMiniGraphData() {
-    if (!miniGraphSymbol) return;
+    if (!miniGraphSymbol || !miniGraphCanvas) return;
     fetch(`/api/algo/stock_graph/${miniGraphSymbol}?interval=${miniGraphInterval}`)
         .then(res => res.json())
         .then(data => {
@@ -1073,7 +1082,7 @@ function renderOptionChain(data) {
 }
 
 function fetchOptionChain() {
-    if (!miniGraphSymbol) return;
+    if (!miniGraphSymbol || !optionChainContent) return;
     const ltp = selectedSymbolMeta && (selectedSymbolMeta.price || selectedSymbolMeta.ltp);
     const ltpParam = ltp ? `?ltp=${ltp}` : '';
     fetch(`/api/optionchain/data/OPTIDX/near/${miniGraphSymbol}${ltpParam}`)
@@ -1128,13 +1137,15 @@ function displayAlgoWatchlistTable(stocks) {
         html += `<div class="show-more-row"><button class="show-more-btn" id="toggleAlgoShowMore">${algoWatchlistShowMore ? 'Show Top 10' : 'Show More'}</button></div>`;
     }
     if (watchlistTabContent) watchlistTabContent.innerHTML = html;
-    document.querySelectorAll('.watchlist-row').forEach(row => {
-        row.addEventListener('click', function() {
-            const sym = this.dataset.symbol;
-            selectedSymbolMeta = symbolMeta[sym] || null;
-            showMiniGraph(sym);
+    if (miniGraphCanvas) {
+        document.querySelectorAll('.watchlist-row').forEach(row => {
+            row.addEventListener('click', function() {
+                const sym = this.dataset.symbol;
+                selectedSymbolMeta = symbolMeta[sym] || null;
+                showMiniGraph(sym);
+            });
         });
-    });
+    }
     const toggleBtn = document.getElementById('toggleAlgoShowMore');
     if (toggleBtn) {
         toggleBtn.addEventListener('click', () => {
