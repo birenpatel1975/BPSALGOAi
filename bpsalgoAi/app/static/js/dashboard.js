@@ -31,20 +31,28 @@ const refreshWatchlistBtn = document.getElementById('refreshWatchlistBtn');
 const paperTradeToggle = document.getElementById('paperTradeToggle');
 const paperTradeLabel = document.getElementById('paperTradeLabel');
 // Add backtest toggle
-let backtestToggle = document.getElementById('backtestToggle');
-if (!backtestToggle) {
+const backtestToggle = (() => {
+    const existingToggle = document.getElementById('backtestToggle');
+    if (existingToggle) {
+        return existingToggle;
+    }
+
     // Dynamically add if not present
     const algoControls = document.querySelector('.algo-controls');
-    if (algoControls) {
-        const label = document.createElement('label');
-        label.style.display = 'flex';
-        label.style.alignItems = 'center';
-        label.style.gap = '6px';
-        label.style.fontWeight = '500';
-        label.innerHTML = `<input type="checkbox" id="backtestToggle" style="accent-color: #f59e42; width: 18px; height: 18px;"> <span id="backtestLabel">Backtest</span>`;
-        algoControls.appendChild(label);
-        backtestToggle = document.getElementById('backtestToggle');
+    if (!algoControls) {
+        return null;
     }
+
+    const label = document.createElement('label');
+    label.style.display = 'flex';
+    label.style.alignItems = 'center';
+    label.style.gap = '6px';
+    label.style.fontWeight = '500';
+    label.innerHTML = `<input type="checkbox" id="backtestToggle" style="accent-color: #f59e42; width: 18px; height: 18px;"> <span id="backtestLabel">Backtest</span>`;
+    algoControls.appendChild(label);
+
+    return document.getElementById('backtestToggle');
+})();
 
 // Initialize dashboard
 document.addEventListener('DOMContentLoaded', function() {
@@ -224,8 +232,7 @@ function setupUnlockedSections() {
  */
 async function startAlgoAgent() {
     try {
-        startBtn.disabled = true;
-        // Clear agent status and log for clean slate
+        // Reset agent status for new session (preserve activity log history)
         agentStatus.textContent = 'STARTING...';
         agentStatus.className = 'status-value';
         lastExecution.textContent = '-';
@@ -248,7 +255,16 @@ async function startAlgoAgent() {
         });
         const data = await response.json();
         if (data.success) {
-            addLog('✅ Algo Agent started in ' + (trade_mode === 'live' ? 'LIVE' : 'PAPER') + ' mode', 'success');
+            addLog(
+                '✅ Algo Agent started in ' +
+                (trade_mode === 'live'
+                    ? 'LIVE'
+                    : trade_mode === 'backtest'
+                        ? 'BACKTEST'
+                        : 'PAPER') +
+                ' mode',
+                'success'
+            );
         } else {
             addLog('❌ Failed to start Algo Agent: ' + data.message, 'error');
         }
@@ -337,7 +353,7 @@ async function updateAgentStatus() {
     } catch (error) {
         console.error('Error updating agent status:', error);
     }
-}
+
 }
 
 /**

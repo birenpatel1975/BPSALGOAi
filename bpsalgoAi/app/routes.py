@@ -175,12 +175,15 @@ def get_config():
         logger.info(f"MSTOCK_ACCOUNT: {MSTOCK_ACCOUNT}")
         logger.info(f"MSTOCK_USERNAME: {os.getenv('MSTOCK_USERNAME')}")
         logger.info(f"MSTOCK_PASSWORD: {os.getenv('MSTOCK_PASSWORD')}")
+        access_token_valid = mstock_auth.is_token_valid()
+        critical_config_present = bool(API_KEY and MSTOCK_API_BASE_URL_A and MSTOCK_ACCOUNT and MSTOCK_WS_ENDPOINT)
         config = {
-            'success': True,
-            'access_token_valid': mstock_auth.is_token_valid(),
-            'ws_endpoint': None
+            'success': bool(access_token_valid and critical_config_present),
+            'access_token_valid': access_token_valid,
+            'ws_endpoint': None,
+            'config_complete': critical_config_present
         }
-        if mstock_auth.is_token_valid():
+        if access_token_valid and critical_config_present:
             ws_url = f"{MSTOCK_WS_ENDPOINT}?API_KEY={API_KEY}&ACCESS_TOKEN={mstock_auth.get_token()}"
             config['ws_endpoint'] = ws_url
         return jsonify(config)

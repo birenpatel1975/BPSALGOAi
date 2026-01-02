@@ -37,9 +37,9 @@ class MStockAPI:
         price = base['ltp']
         for i in range(days):
             date = today - datetime.timedelta(days=i)
-            change = random.uniform(-2, 2)
+            daily_price_change = random.uniform(-2, 2)
             open_ = round(price + random.uniform(-1, 1), 2)
-            close = round(open_ + change, 2)
+            close = round(open_ + daily_price_change, 2)
             high = round(max(open_, close) + random.uniform(0, 1), 2)
             low = round(min(open_, close) - random.uniform(0, 1), 2)
             volume = int(base['volume'] * random.uniform(0.8, 1.2))
