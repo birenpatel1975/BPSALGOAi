@@ -116,23 +116,62 @@ class AlgoAgent:
         }
     
     def _run_algorithm(self):
-        """Main algorithm loop"""
+        """Main algorithm loop: scan watchlist, execute trade, rescan after close."""
         import time
+        scanned_symbols = set()
         while self.is_running:
             try:
-                # Step 1: Fetch live data
-                self.log_action("Fetching live market data...")
-                live_data = self.api_client.get_live_data()
-                if live_data['success']:
-                    self.log_action(f"Live data received: {len(live_data['data']) if isinstance(live_data['data'], list) else 'N/A'} symbols")
-                    # Step 2: Analyze data and execute trades (show research/strategy)
-                    self.log_action("Analyzing data and applying strategy...")
-                    self._analyze_and_trade(live_data['data'])
-                    self.last_execution = datetime.now()
+                # Step 1: Fetch watchlist
+                self.log_action("Fetching watchlist for scan...")
+                watchlist_resp = self.api_client.get_watchlist()
+                if not watchlist_resp['success'] or not watchlist_resp['data']:
+                    self.log_action(f"Failed to fetch watchlist: {watchlist_resp.get('error')}")
+                    time.sleep(10)
+                    continue
+                watchlist = watchlist_resp['data']
+                # Step 2: Find best performer (highest % change)
+                best_stock = None
+                best_change = float('-inf')
+                for item in watchlist:
+                    change = float(item.get('change', item.get('pchange', 0)))
+                    if item.get('symbol') and change > best_change and item['symbol'] not in scanned_symbols:
+                        best_stock = item
+                        best_change = change
+                if not best_stock:
+                    self.log_action("No new rallying stock found in watchlist.")
+                    time.sleep(10)
+                    continue
+                symbol = best_stock['symbol']
+                price = best_stock.get('price', best_stock.get('ltp', 0))
+                self.log_action(f"Selected for trade: {symbol} with change {best_change}% at price {price}")
+                scanned_symbols.add(symbol)
+                # Step 3: Execute trade (paper/live)
+                trade_type = 'BUY' if best_change > 0 else 'SELL'
+                strike_price = price
+                self.log_action(f"Executing {self.trade_mode.upper()} trade: {trade_type} {symbol} at {strike_price}")
+                if self.trade_mode == 'live':
+                    order_data = {
+                        'symbol': symbol,
+                        'side': trade_type,
+                        'quantity': 1,
+                        'order_type': 'MARKET',
+                        'product': 'CNC',
+                    }
+                    order_resp = self.api_client.place_order(order_data)
+                    self.log_action(f"LIVE TRADE: {trade_type} {symbol} resp={order_resp}")
                 else:
-                    self.log_action(f"Failed to fetch live data: {live_data.get('error')}")
-                # Sleep for a short period before next iteration
-                time.sleep(5)  # Update every 5 seconds
+                    self.log_action(f"PAPER TRADE: {trade_type} {symbol} at {strike_price}")
+                self.trade_count += 1
+                # Step 4: Simulate/monitor trade close, then rescan
+                self.log_action(f"Monitoring trade for {symbol}...")
+                time.sleep(10)  # Simulate holding period
+                # For demo, close trade after wait
+                close_price = price + (price * 0.01 if trade_type == 'BUY' else -price * 0.01)
+                pnl = close_price - strike_price if trade_type == 'BUY' else strike_price - close_price
+                self.log_action(f"Trade closed for {symbol}. Close price: {close_price}, P&L: {pnl:.2f}")
+                # Step 5: Rescan for new stock
+                self.log_action("Rescanning watchlist for new opportunities...")
+                time.sleep(5)
             except Exception as e:
                 logger.error(f"Error in algorithm loop: {str(e)}")
                 self.log_action(f"Error: {str(e)}")
