@@ -62,6 +62,20 @@
                 <div id="watchlistTabContent" class="watchlist-data">
                     <p class="placeholder">Select a tab to view stocks...</p>
                 </div>
+                <div id="miniGraphContainer" style="margin-top:24px;display:none;">
+                    <div style="display:flex;align-items:center;gap:12px;">
+                        <span id="miniGraphTitle" style="font-weight:600;font-size:1.1em;"></span>
+                        <label>Interval:
+                            <select id="miniGraphInterval">
+                                <option value="1">1 min</option>
+                                <option value="5">5 min</option>
+                                <option value="10">10 min</option>
+                                <option value="15">15 min</option>
+                            </select>
+                        </label>
+                    </div>
+                    <canvas id="miniGraph" width="600" height="220"></canvas>
+                </div>
             </section>
 
             <!-- Market Movers Section (now includes Algo Agent Control and live stats) -->
@@ -152,6 +166,8 @@
         </footer>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="{{ url_for('static', filename='js/chart.min.js') }}"></script>
     <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
 </body>
 </html>

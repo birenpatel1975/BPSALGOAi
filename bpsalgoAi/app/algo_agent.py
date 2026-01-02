@@ -240,3 +240,40 @@ class AlgoAgent:
             'logs': self.logs[-50:],  # last 50 log entries
             'stats': stats if stats else None
         }
+
+    # --- New: Algo Agent Watchlist Info for UI ---
+    def get_watchlist_info(self):
+        """
+        Return a list of dicts for all stocks Algo Agent is tracking, with:
+        symbol, last_close, low, high, price, volume_change
+        """
+        # For demo, use mock data or fetch from self.api_client.get_live_data
+        symbols = ['NIFTY50', 'BANKNIFTY', 'FINNIFTY']
+        live = self.api_client.get_live_data(symbols)
+        result = []
+        if live['success'] and 'data' in live and 'symbols' in live['data']:
+            for item in live['data']['symbols']:
+                # Simulate last_close, low, high, price, volume_change
+                result.append({
+                    'symbol': item.get('symbol'),
+                    'last_close': item.get('open', 0),
+                    'low': item.get('low', 0),
+                    'high': item.get('high', 0),
+                    'price': item.get('ltp', 0),
+                    'volume_change': item.get('volume', 0),
+                })
+        return result
+
+    # --- New: Mini-graph data for selected stock ---
+    def get_stock_graph(self, symbol, interval):
+        """
+        Return mock price data for 1/5/10/15 min intervals for mini-graph.
+        """
+        import random, datetime
+        now = datetime.datetime.now()
+        data = []
+        for i in range(60):
+            t = now - datetime.timedelta(minutes=interval * (59 - i))
+            price = 100 + random.uniform(-2, 2) * i / 10
+            data.append({'time': t.strftime('%H:%M'), 'price': round(price, 2)})
+        return data

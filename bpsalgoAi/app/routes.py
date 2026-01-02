@@ -32,6 +32,29 @@ mstock_auth = MStockAuth(
 mstock_api = MStockAPI(base_url=MSTOCK_API_BASE_URL_A, api_key=API_KEY, auth=mstock_auth)
 algo_agent = AlgoAgent(mstock_api)
 
+# ==================== Algo Agent Watchlist API ====================
+
+@api_bp.route('/algo/watchlist', methods=['GET'])
+def algo_watchlist():
+    """Return Algo Agent's managed watchlist with all required info for each stock."""
+    try:
+        data = algo_agent.get_watchlist_info()  # Should return list of dicts with symbol, last_close, low, high, price, volume_change
+        return jsonify({'success': True, 'data': data})
+    except Exception as e:
+        logger.error(f"Error fetching algo watchlist: {e}")
+        return jsonify({'success': False, 'error': str(e), 'data': []})
+
+@api_bp.route('/algo/stock_graph/<symbol>', methods=['GET'])
+def algo_stock_graph(symbol):
+    """Return 1/5/10/15 min price data for mini-graph of selected stock."""
+    try:
+        interval = int(request.args.get('interval', 1))  # 1, 5, 10, 15
+        data = algo_agent.get_stock_graph(symbol, interval)
+        return jsonify({'success': True, 'data': data})
+    except Exception as e:
+        logger.error(f"Error fetching stock graph for {symbol}: {e}")
+        return jsonify({'success': False, 'error': str(e), 'data': []})
+
 # ==================== Main Routes ====================
 
 @main_bp.route('/')

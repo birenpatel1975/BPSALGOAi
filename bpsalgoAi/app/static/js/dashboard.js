@@ -937,4 +937,118 @@ function fetchWatchlistTab(tab) {
         });
 }
 
+// --- Mini-graph logic ---
+let miniGraph = null;
+let miniGraphSymbol = null;
+let miniGraphInterval = 1;
+const miniGraphContainer = document.getElementById('miniGraphContainer');
+const miniGraphCanvas = document.getElementById('miniGraph');
+const miniGraphTitle = document.getElementById('miniGraphTitle');
+const miniGraphIntervalSelect = document.getElementById('miniGraphInterval');
+
+function showMiniGraph(symbol) {
+    miniGraphSymbol = symbol;
+    miniGraphInterval = parseInt(miniGraphIntervalSelect.value);
+    miniGraphTitle.textContent = `Mini-Graph: ${symbol}`;
+    miniGraphContainer.style.display = '';
+    fetchMiniGraphData();
+}
+
+function fetchMiniGraphData() {
+    if (!miniGraphSymbol) return;
+    fetch(`/api/algo/stock_graph/${miniGraphSymbol}?interval=${miniGraphInterval}`)
+        .then(res => res.json())
+        .then(data => {
+            if (data.success && Array.isArray(data.data)) {
+                renderMiniGraph(data.data);
+            }
+        });
+}
+
+function renderMiniGraph(data) {
+    if (!miniGraphCanvas) return;
+    const ctx = miniGraphCanvas.getContext('2d');
+    if (miniGraph) miniGraph.destroy();
+    const labels = data.map(d => d.time);
+    const prices = data.map(d => d.price);
+    // For demo, generate random volume and indicators
+    const volumes = data.map(() => Math.floor(Math.random() * 1000 + 100));
+    // Simple Bollinger Bands (mock)
+    const sma = prices.map((_, i, arr) => arr.slice(Math.max(0, i-5), i+1).reduce((a,b)=>a+b,0)/(Math.min(i+1,6)));
+    const std = prices.map((_, i, arr) => {
+        const mean = sma[i];
+        const slice = arr.slice(Math.max(0, i-5), i+1);
+        return Math.sqrt(slice.reduce((a,b)=>a+(b-mean)**2,0)/slice.length);
+    });
+    const upper = sma.map((m,i)=>m+2*std[i]);
+    const lower = sma.map((m,i)=>m-2*std[i]);
+    // Mock ADX and Money Flow
+    const adx = prices.map((_,i)=>50+10*Math.sin(i/10));
+    const mfi = prices.map((_,i)=>50+20*Math.cos(i/15));
+    miniGraph = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels,
+            datasets: [
+                { label: 'Price', data: prices, borderColor: '#1e40af', backgroundColor: 'rgba(30,64,175,0.1)', yAxisID: 'y' },
+                { label: 'Upper Band', data: upper, borderColor: '#22d3ee', borderDash: [5,5], fill: false, yAxisID: 'y' },
+                { label: 'Lower Band', data: lower, borderColor: '#f59e42', borderDash: [5,5], fill: false, yAxisID: 'y' },
+                { label: 'ADX', data: adx, borderColor: '#f43f5e', fill: false, yAxisID: 'y2' },
+                { label: 'MFI', data: mfi, borderColor: '#84cc16', fill: false, yAxisID: 'y2' },
+                { label: 'Volume', data: volumes, type: 'bar', backgroundColor: 'rgba(16,185,129,0.3)', yAxisID: 'y3' }
+            ]
+        },
+        options: {
+            responsive: false,
+            plugins: { legend: { display: true } },
+            scales: {
+                y: { type: 'linear', position: 'left', title: { display: true, text: 'Price' } },
+                y2: { type: 'linear', position: 'right', title: { display: true, text: 'ADX/MFI' }, grid: { drawOnChartArea: false } },
+                y3: { type: 'linear', position: 'right', title: { display: true, text: 'Volume' }, grid: { drawOnChartArea: false }, offset: true }
+            }
+        }
+    });
+}
+
+if (miniGraphIntervalSelect) {
+    miniGraphIntervalSelect.addEventListener('change', () => {
+        miniGraphInterval = parseInt(miniGraphIntervalSelect.value);
+        fetchMiniGraphData();
+    });
+}
+
+// --- Watchlist table click handler ---
+function displayAlgoWatchlistTable(stocks) {
+    let html = `<table class="watchlist-table"><thead><tr><th>Symbol</th><th>Last Close</th><th>Low</th><th>High</th><th>Price</th><th>Volume</th></tr></thead><tbody>`;
+    stocks.forEach(stock => {
+        html += `<tr class="watchlist-row" data-symbol="${stock.symbol}"><td>${stock.symbol}</td><td>${stock.last_close}</td><td>${stock.low}</td><td>${stock.high}</td><td>${stock.price}</td><td>${stock.volume_change}</td></tr>`;
+    });
+    html += '</tbody></table>';
+    if (watchlistTabContent) watchlistTabContent.innerHTML = html;
+    // Add click listeners
+    document.querySelectorAll('.watchlist-row').forEach(row => {
+        row.addEventListener('click', function() {
+            showMiniGraph(this.dataset.symbol);
+        });
+    });
+}
+
+// --- Algo Agent Watchlist fetch/refresh ---
+function fetchAlgoWatchlist() {
+    fetch('/api/algo/watchlist')
+        .then(res => res.json())
+        .then(data => {
+            if (data.success && Array.isArray(data.data)) {
+                displayAlgoWatchlistTable(data.data);
+            } else {
+                if (watchlistTabContent) watchlistTabContent.innerHTML = `<p class="placeholder">Error loading watchlist: ${data.error || 'Unknown error'}</p>`;
+            }
+        });
+}
+
+// --- Auto-refresh every 10s ---
+setInterval(fetchAlgoWatchlist, 10000);
+// Initial load
+fetchAlgoWatchlist();
+
 // Ensure all functions and the file are properly closed
