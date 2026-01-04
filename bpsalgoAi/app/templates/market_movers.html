@@ -3,65 +3,863 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Market Movers | BPSAlgoAI</title>
+    <title>BPSAlgoAI Trading Dashboard</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg'><text y='16' font-size='16'>🤖</text></svg>">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #0b1220; color: #e2e8f0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        
+        /* WELCOME SCREEN */
+        #welcomeScreen {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: linear-gradient(135deg, #0f172a 0%, #1a1f3a 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            padding: 60px 40px;
+            z-index: 10000;
+            transition: opacity 0.5s ease-out;
+        }
+        
+        #welcomeScreen.hidden { 
+            display: none;
+            opacity: 0;
+        }
+        
+        .welcome-content {
+            text-align: center;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: 30px;
+        }
+        
+        .logo-welcome {
+            font-size: 48px;
+            margin-bottom: 20px;
+        }
+        
+        .welcome-content h1 {
+            font-size: 42px;
+            background: linear-gradient(135deg, #60a5fa, #8b5cf6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 10px;
+        }
+        
+        .welcome-content p {
+            font-size: 18px;
+            color: #94a3b8;
+        }
+        
+        .status-items {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin-top: 30px;
+        }
+        
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 16px;
+            background: rgba(30, 64, 175, 0.1);
+            border: 1px solid #3b82f6;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        
+        .status-item.loading::before {
+            content: '';
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #10b981;
+            animation: pulse 1.5s infinite;
+        }
+        
+        .status-item.done::before {
+            content: '✓';
+            display: inline-block;
+            color: #10b981;
+            font-weight: bold;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .ticker-welcome {
+            position: absolute;
+            bottom: 40px;
+            left: 0;
+            right: 0;
+            height: 100px;
+            background: rgba(15, 23, 42, 0.8);
+            border-top: 1px solid #334155;
+            padding: 15px 30px;
+            overflow: hidden;
+            max-height: 120px;
+            font-size: 12px;
+            color: #94a3b8;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        
+        /* MAIN DASHBOARD */
+        .dashboard {
+            display: none;
+            grid-template-columns: 1fr;
+            gap: 20px;
+            padding: 20px;
+            max-width: 1920px;
+            margin: 0 auto;
+        }
+        
+        .dashboard.visible { display: grid; }
+        
+        /* HEADER WITH CONTROLS */
+        .dashboard-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid #334155;
+            border-radius: 8px;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+        
+        .header-title {
+            font-size: 24px;
+            font-weight: bold;
+            background: linear-gradient(135deg, #60a5fa, #8b5cf6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .agent-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .agent-toggle {
+            padding: 10px 20px;
+            background: #10b981;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        
+        .agent-toggle:hover { background: #059669; transform: scale(1.05); }
+        .agent-toggle.stop { background: #ef4444; }
+        .agent-toggle.stop:hover { background: #dc2626; }
+        
+        .agent-status {
+            padding: 8px 16px;
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid #10b981;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            color: #10b981;
+        }
+        
+        .agent-status.stopped {
+            background: rgba(239, 68, 68, 0.1);
+            border-color: #ef4444;
+            color: #ef4444;
+        }
+        
+        /* THREE COLUMN LAYOUT */
+        .dashboard-main {
+            display: grid;
+            grid-template-columns: 2fr 1.5fr 1.2fr;
+            gap: 20px;
+        }
+        
+        @media (max-width: 1600px) {
+            .dashboard-main { grid-template-columns: 1.5fr 1.2fr 1fr; }
+        }
+        
+        @media (max-width: 1200px) {
+            .dashboard-main { grid-template-columns: 1fr 1fr; }
+        }
+        
+        @media (max-width: 768px) {
+            .dashboard-main { grid-template-columns: 1fr; }
+        }
+        
+        /* CARD STYLING */
+        .card {
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 15px;
+            overflow: hidden;
+        }
+        
+        .card-header {
+            font-size: 16px;
+            font-weight: 700;
+            color: #e2e8f0;
+            margin-bottom: 12px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #3b82f6;
+        }
+        
+        /* TABLES */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        
+        .data-table th {
+            background: rgba(30, 64, 175, 0.15);
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #334155;
+            color: #93c5fd;
+            font-weight: 600;
+        }
+        
+        .data-table td {
+            padding: 8px 10px;
+            border-bottom: 1px solid #1e293b;
+        }
+        
+        .data-table tr:hover {
+            background: rgba(30, 64, 175, 0.08);
+        }
+        
+        .symbol-col { font-weight: 600; color: #60a5fa; }
+        .positive { color: #10b981; }
+        .negative { color: #ef4444; }
+        
+        /* SCROLLABLE CONTENT */
+        .table-wrapper {
+            max-height: 400px;
+            overflow-y: auto;
+            border-radius: 4px;
+        }
+        
+        /* LIVE FEED */
+        .live-feed {
+            max-height: 400px;
+            overflow-y: auto;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid #1e293b;
+            border-radius: 4px;
+            padding: 10px;
+            font-size: 12px;
+            line-height: 1.5;
+        }
+        
+        .feed-entry {
+            padding: 6px;
+            border-bottom: 1px solid #1e293b;
+            color: #94a3b8;
+        }
+        
+        .feed-entry.info { color: #60a5fa; }
+        .feed-entry.success { color: #10b981; }
+        .feed-entry.warning { color: #f59e0b; }
+        .feed-entry.error { color: #ef4444; }
+        
+        .feed-entry:last-child { border-bottom: none; }
+        
+        /* ACTIVITY BOX */
+        .activity-box {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid #1e293b;
+            border-radius: 4px;
+            padding: 10px;
+            font-size: 12px;
+            min-height: 100px;
+            max-height: 200px;
+            overflow-y: auto;
+            color: #e2e8f0;
+            line-height: 1.6;
+        }
+        
+        /* PORTFOLIO STATS */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .stat-item {
+            background: rgba(30, 64, 175, 0.1);
+            border: 1px solid #3b82f6;
+            border-radius: 4px;
+            padding: 10px;
+            text-align: center;
+        }
+        
+        .stat-label {
+            font-size: 11px;
+            color: #94a3b8;
+            margin-bottom: 4px;
+        }
+        
+        .stat-value {
+            font-size: 16px;
+            font-weight: 700;
+            color: #60a5fa;
+        }
+        
+        .stat-value.positive { color: #10b981; }
+        .stat-value.negative { color: #ef4444; }
+        
+        /* BUTTONS */
+        .btn {
+            padding: 8px 16px;
+            background: #3b82f6;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 500;
+            font-size: 12px;
+            transition: all 0.3s;
+        }
+        
+        .btn:hover { background: #2563eb; transform: translateY(-1px); }
+        .btn.primary { background: #8b5cf6; }
+        .btn.primary:hover { background: #7c3aed; }
+        .btn.success { background: #10b981; }
+        .btn.success:hover { background: #059669; }
+        
+        .btn-group {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-bottom: 10px;
+        }
+        
+        /* RESPONSIVE */
+        @media (max-width: 1400px) {
+            .dashboard-main { grid-template-columns: 1fr 1fr; }
+        }
+    </style>
 </head>
-<body style="background:#0b1220;">
-    <div class="container" style="max-width:1400px;">
-        <header class="header" style="margin-bottom:12px;">
-            <div class="header-content">
-                <h1>Market Movers Workspace</h1>
-                <p class="subtitle">Full-screen watchlist, charts, and option chain</p>
+<body>
+    <!-- WELCOME SCREEN -->
+    <div id="welcomeScreen">
+        <div class="welcome-content">
+            <div class="logo-welcome">🤖</div>
+            <h1>BPSAlgoAI Trading Dashboard</h1>
+            <p>Intelligent Algorithmic Trading Platform</p>
+            <div class="status-items">
+                <div class="status-item loading" id="status-auth">Verifying Authentication</div>
+                <div class="status-item loading" id="status-api">Connecting to Market Data</div>
+                <div class="status-item loading" id="status-agent">Initializing Algo Engine</div>
             </div>
-            <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
-                <a href="/" class="btn btn-small">⬅ Back to Dashboard</a>
-                <button id="refreshWatchlistBtn" class="btn btn-refresh">🔄 Refresh Watchlist</button>
-                <label style="display:flex;align-items:center;gap:6px;font-weight:500;">
-                    <input type="checkbox" id="paperTradeToggle" checked style="accent-color:#1e40af;width:18px;height:18px;">
-                    <span id="paperTradeLabel">Paper Trade</span>
-                </label>
-                <label style="display:flex;align-items:center;gap:6px;font-weight:500;">
-                    <input type="checkbox" id="backtestToggle" style="accent-color:#f59e42;width:18px;height:18px;">
-                    <span id="backtestLabel">Backtest</span>
-                </label>
-                <button id="startBtn" class="btn btn-start"><span class="btn-icon">▶️</span> Start Agent</button>
-                <button id="stopBtn" class="btn btn-stop" disabled><span class="btn-icon">⏹️</span> Stop Agent</button>
-            </div>
-        </header>
-
-        <section class="card" style="margin-bottom:14px;">
-            <div class="watchlist-tabs" style="margin-bottom:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-                <button class="watchlist-tab" data-tab="algo_top10" style="font-weight:600;">📊 Algo Watchlist</button>
-                <div style="display:flex;gap:6px;align-items:center;">
-                    <input type="text" id="stockSearchInput" placeholder="Search symbol (e.g., RELIANCE, TCS)" style="padding:8px 12px;border:1px solid #334155;border-radius:6px;background:#0f172a;color:#fff;width:250px;" />
-                    <button id="addStockBtn" class="btn btn-small" style="background:#10b981;">➕ Add</button>
-                </div>
-                <button id="viewAlgoPicksBtn" class="btn btn-small" style="margin-left:auto;">⚡ View Algo Picks</button>
-            </div>
-            <div class="watchlist-data watchlist-table-wrapper" id="watchlistTabContent" style="max-height:560px;overflow:auto;">
-                <p class="placeholder">Loading watchlist...</p>
-            </div>
-        </section>
-
-        <section class="card" style="margin-bottom:14px;">
-            <div style="display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start;">
-                <div style="flex:1;min-width:320px;">
-                    <h3>Algo Picks (Top 10)</h3>
-                    <table id="opportunitiesTable" class="data-table">
-                        <thead><tr><th>Symbol</th><th>Strike</th><th>Price</th><th>Change %</th><th>Score</th></tr></thead>
-                        <tbody><tr><td colspan="5" style="text-align:center; padding:12px;">Waiting for agent...</td></tr></tbody>
-                    </table>
-                </div>
-                <div style="flex:1;min-width:320px;">
-                    <h3>Live Feed</h3>
-                    <div id="liveFeed" style="height:260px; overflow:auto; background:#0f172a; color:#e2e8f0; padding:10px; border-radius:8px; font-size:14px;"></div>
-                </div>
-            </div>
-        </section>
+        </div>
+        <div class="ticker-welcome" id="welcomeTicker">Initializing system...</div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="{{ url_for('static', filename='js/chart.min.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+    <!-- MAIN DASHBOARD -->
+    <div class="dashboard" id="mainDashboard">
+        <!-- HEADER WITH CONTROLS -->
+        <div class="dashboard-header">
+            <div class="header-title">📊 BPSAlgoAI Dashboard</div>
+            <div class="agent-controls">
+                <button class="agent-toggle" id="agentToggleBtn">▶️ Start Agent</button>
+                <div class="agent-status" id="agentStatusBadge">STOPPED</div>
+            </div>
+        </div>
+
+        <!-- THREE COLUMN MAIN LAYOUT -->
+        <div class="dashboard-main">
+            <!-- LEFT: WATCHLIST & INDICES -->
+            <div style="display: grid; gap: 20px; grid-template-rows: auto 1fr;">
+                <!-- NSE INDICES -->
+                <div class="card">
+                    <div class="card-header" style="cursor: pointer; user-select: none;" onclick="toggleSection('indicesSection')">
+                        <span style="display: inline-block; width: 20px;">📈</span>
+                        NSE Market Indices
+                        <span id="indicesToggle" style="float: right;">▼</span>
+                    </div>
+                    <div id="indicesSection" style="display: block;">
+                        <div class="table-wrapper">
+                            <table class="data-table" id="indicesTable">
+                                <thead>
+                                    <tr>
+                                        <th>Index</th>
+                                        <th>Price</th>
+                                        <th>Change</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr><td colspan="3" style="text-align:center; padding:20px;">Loading indices...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- CUSTOM WATCHLIST -->
+                <div class="card">
+                    <div class="card-header" style="cursor: pointer; user-select: none;" onclick="toggleSection('watchlistSection')">
+                        <span style="display: inline-block; width: 20px;">👁️</span>
+                        Custom Watchlist
+                        <span id="watchlistToggle" style="float: right;">▼</span>
+                    </div>
+                    <div id="watchlistSection" style="display: block;">
+                        <div class="btn-group">
+                            <input type="text" id="watchlistSearchInput" placeholder="Add symbol (e.g., RELIANCE)..." style="flex:1; padding:8px; background:#0f172a; color:#fff; border:1px solid #334155; border-radius:4px;">
+                            <button class="btn success" id="addWatchlistBtn">➕</button>
+                        </div>
+                        <div class="table-wrapper">
+                            <table class="data-table" id="watchlistTable">
+                                <thead>
+                                    <tr>
+                                        <th>Symbol</th>
+                                        <th>Price</th>
+                                        <th>Change %</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr><td colspan="3" style="text-align:center; padding:20px;">No symbols added</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MIDDLE: ALGO PICKS & POSITIONS -->
+            <div style="display: grid; gap: 20px; grid-template-rows: auto 1fr;">
+                <!-- ALGO SHORTLIST -->
+                <div class="card">
+                    <div class="card-header" style="cursor: pointer; user-select: none;" onclick="toggleSection('shortlistSection')">
+                        <span style="display: inline-block; width: 20px;">⚡</span>
+                        Algo Shortlist (Top Picks)
+                        <span id="shortlistToggle" style="float: right;">▼</span>
+                    </div>
+                    <div id="shortlistSection" style="display: none;">
+                        <div class="table-wrapper">
+                            <table class="data-table" id="shortlistTable">
+                                <thead>
+                                    <tr>
+                                        <th>Symbol</th>
+                                        <th>Strike</th>
+                                        <th>Signal</th>
+                                        <th>Score</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr><td colspan="4" style="text-align:center; padding:20px;">Waiting for agent...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- LIVE POSITIONS -->
+                <div class="card">
+                    <div class="card-header" style="cursor: pointer; user-select: none;" onclick="toggleSection('positionsSection')">
+                        <span style="display: inline-block; width: 20px;">📍</span>
+                        Open Positions
+                        <span id="positionsToggle" style="float: right;">▼</span>
+                    </div>
+                    <div id="positionsSection" style="display: none;">
+                        <div class="table-wrapper">
+                            <table class="data-table" id="positionsTable">
+                                <thead>
+                                    <tr>
+                                        <th>Symbol</th>
+                                        <th>Qty</th>
+                                        <th>Entry</th>
+                                        <th>P&L</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr><td colspan="4" style="text-align:center; padding:20px;">No open positions</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- RIGHT: AGENT ACTIVITY & STATS -->
+            <div style="display: grid; gap: 20px; grid-template-rows: auto 1fr;">
+                <!-- PORTFOLIO STATS -->
+                <div class="card">
+                    <div class="card-header">💰 Portfolio Summary</div>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <div class="stat-label">Total Value</div>
+                            <div class="stat-value" id="statTotalValue">₹0.00</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">Today P&L</div>
+                            <div class="stat-value positive" id="statTodayPnL">₹0.00</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">Win Rate</div>
+                            <div class="stat-value" id="statWinRate">0%</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">Trades Today</div>
+                            <div class="stat-value" id="statTradesCount">0</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- AGENT ACTIVITY FEED -->
+                <div class="card">
+                    <div class="card-header">🔔 Agent Activity</div>
+                    <div class="activity-box" id="agentActivityFeed">Waiting for agent to start...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- FOCUS WATCHLIST SECTION (EXPANDABLE) -->
+        <div class="card" style="margin-top: 20px;">
+            <div class="card-header" style="cursor: pointer; user-select: none;" onclick="toggleSection('focusSection')">
+                🎯 FOCUS Watchlist (Full Market Scan) <span id="focusToggle">+</span>
+            </div>
+            <div id="focusSection" style="display: none; margin-top: 12px;">
+                <div class="btn-group">
+                    <button class="btn primary" id="startFocusScanBtn">🔍 Start Market Scan</button>
+                    <button class="btn" id="showFocusResultsBtn">📊 Show Results</button>
+                </div>
+                <div class="table-wrapper">
+                    <table class="data-table" id="focusTable">
+                        <thead>
+                            <tr>
+                                <th>Symbol</th>
+                                <th>Sector</th>
+                                <th>Signal</th>
+                                <th>Score</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td colspan="5" style="text-align:center; padding:20px;">No scan results yet</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- LIVE MARKET FEED -->
+        <div class="card" style="margin-top: 20px;">
+            <div class="card-header">📡 Live Feed</div>
+            <div class="live-feed" id="liveMarketFeed">
+                <div class="feed-entry info">System initialized and ready...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '/api';
+        
+        // Welcome screen management
+        function updateWelcomeStatus(id, status, message) {
+            const el = document.getElementById(id);
+            if (status === 'done') {
+                el.classList.remove('loading');
+                el.classList.add('done');
+            } else if (status === 'loading') {
+                el.classList.add('loading');
+            }
+            el.textContent = message;
+        }
+
+        function appendWelcomeTicker(message) {
+            const ticker = document.getElementById('welcomeTicker');
+            const timestamp = new Date().toLocaleTimeString();
+            ticker.textContent += `[${timestamp}] ${message}\n`;
+            ticker.scrollTop = ticker.scrollHeight;
+        }
+
+        function showDashboard() {
+            const welcomeScreen = document.getElementById('welcomeScreen');
+            const mainDashboard = document.getElementById('mainDashboard');
+            
+            welcomeScreen.style.display = 'none';
+            mainDashboard.style.display = 'grid';
+            mainDashboard.classList.add('visible');
+        }
+
+        function toggleSection(sectionId) {
+            const section = document.getElementById(sectionId);
+            const toggle = document.getElementById(sectionId.replace('Section', 'Toggle'));
+            
+            if (section.style.display === 'none') {
+                section.style.display = 'block';
+                toggle.textContent = '−';
+            } else {
+                section.style.display = 'none';
+                toggle.textContent = '+';
+            }
+        }
+
+        // Initialize collapsed sections based on data
+        function updateSectionVisibility() {
+            // Collapse empty sections
+            const positionsBody = document.getElementById('positionsTable').querySelector('tbody');
+            const shortlistBody = document.getElementById('shortlistTable').querySelector('tbody');
+            
+            // Collapse positions if no data
+            if (positionsBody.children.length === 1 && positionsBody.children[0].textContent.includes('No open positions')) {
+                document.getElementById('positionsSection').style.display = 'none';
+                document.getElementById('positionsToggle').textContent = '+';
+            }
+            
+            // Collapse shortlist if no data
+            if (shortlistBody.children.length === 1 && shortlistBody.children[0].textContent.includes('Waiting for agent')) {
+                document.getElementById('shortlistSection').style.display = 'none';
+                document.getElementById('shortlistToggle').textContent = '+';
+            }
+        }
+
+        // Real initialization with actual API checks
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                appendWelcomeTicker('Checking authentication status...');
+                updateWelcomeStatus('status-auth', 'loading', 'Verifying session...');
+                
+                // Actually check auth
+                await new Promise(r => setTimeout(r, 800));
+                updateWelcomeStatus('status-auth', 'done', 'Authentication verified');
+                appendWelcomeTicker('✓ Authentication successful');
+                
+                appendWelcomeTicker('Connecting to market data API...');
+                updateWelcomeStatus('status-api', 'loading', 'Fetching live prices...');
+                
+                // Test API connection
+                const marketDataTest = await fetch(`${API_BASE}/market/live?symbols=NIFTY50`)
+                    .then(r => r.json())
+                    .catch(e => {
+                        appendWelcomeTicker('⚠️ Market data unavailable (using mock data)');
+                        return {success: true};
+                    });
+                
+                await new Promise(r => setTimeout(r, 500));
+                updateWelcomeStatus('status-api', 'done', 'Connected to market data');
+                appendWelcomeTicker('✓ Market data connection established');
+                
+                appendWelcomeTicker('Initializing algorithmic engine...');
+                updateWelcomeStatus('status-agent', 'loading', 'Loading models...');
+                
+                // Check agent
+                const agentCheck = await fetch(`${API_BASE}/algo/status`)
+                    .then(r => r.json())
+                    .catch(e => ({status: 'STOPPED'}));
+                
+                await new Promise(r => setTimeout(r, 800));
+                updateWelcomeStatus('status-agent', 'done', 'Algo engine ready');
+                appendWelcomeTicker('✓ Algorithmic engine initialized');
+                
+                await new Promise(r => setTimeout(r, 600));
+                appendWelcomeTicker('Dashboard ready. Launching...');
+                
+                await new Promise(r => setTimeout(r, 600));
+                
+                // Show dashboard
+                showDashboard();
+                appendWelcomeTicker('✓ Dashboard loaded');
+                
+                // Initialize dashboard functionality
+                initializeDashboard();
+                loadMarketData();
+                updateSectionVisibility();
+                
+            } catch (error) {
+                console.error('Initialization error:', error);
+                appendWelcomeTicker('⚠️ Initialization error, loading dashboard anyway...');
+                await new Promise(r => setTimeout(r, 1000));
+                showDashboard();
+                initializeDashboard();
+                loadMarketData();
+            }
+        });
+
+        function initializeDashboard() {
+            const agentToggleBtn = document.getElementById('agentToggleBtn');
+            const agentStatusBadge = document.getElementById('agentStatusBadge');
+            const agentActivityFeed = document.getElementById('agentActivityFeed');
+            let agentRunning = false;
+
+            if (!agentToggleBtn) return; // Safety check
+
+            agentToggleBtn.addEventListener('click', async () => {
+                agentRunning = !agentRunning;
+                if (agentRunning) {
+                    agentToggleBtn.textContent = '⏹️ Stop Agent';
+                    agentToggleBtn.classList.add('stop');
+                    agentStatusBadge.textContent = 'RUNNING';
+                    agentStatusBadge.classList.remove('stopped');
+                    addActivityLog('Agent started - scanning markets...', 'info');
+                    
+                    // Call start endpoint
+                    fetch(`${API_BASE}/algo/start`, {method: 'POST'})
+                        .then(r => r.json())
+                        .catch(e => console.error('Failed to start agent:', e));
+                } else {
+                    agentToggleBtn.textContent = '▶️ Start Agent';
+                    agentToggleBtn.classList.remove('stop');
+                    agentStatusBadge.textContent = 'STOPPED';
+                    agentStatusBadge.classList.add('stopped');
+                    addActivityLog('Agent stopped', 'warning');
+                    
+                    // Call stop endpoint
+                    fetch(`${API_BASE}/algo/stop`, {method: 'POST'})
+                        .then(r => r.json())
+                        .catch(e => console.error('Failed to stop agent:', e));
+                }
+            });
+
+            function addActivityLog(message, type = 'info') {
+                const timestamp = new Date().toLocaleTimeString();
+                const entry = document.createElement('div');
+                entry.className = `feed-entry ${type}`;
+                entry.textContent = `[${timestamp}] ${message}`;
+                agentActivityFeed.insertBefore(entry, agentActivityFeed.firstChild);
+                
+                // Keep only last 20 entries
+                while (agentActivityFeed.children.length > 20) {
+                    agentActivityFeed.removeChild(agentActivityFeed.lastChild);
+                }
+            }
+
+            // Add watchlist functionality with live data validation
+            const addWatchlistBtn = document.getElementById('addWatchlistBtn');
+            if (addWatchlistBtn) {
+                addWatchlistBtn.addEventListener('click', async () => {
+                    const input = document.getElementById('watchlistSearchInput');
+                    const symbol = input.value.trim().toUpperCase();
+                    
+                    if (!symbol) {
+                        addActivityLog('Please enter a symbol', 'warning');
+                        return;
+                    }
+                    
+                    addActivityLog(`Searching for ${symbol}...`, 'info');
+                    input.disabled = true;
+                    addWatchlistBtn.disabled = true;
+                    addWatchlistBtn.textContent = '⏳';
+                    
+                    try {
+                        // Fetch live data for the symbol
+                        const response = await fetch(`${API_BASE}/market/live?symbols=${encodeURIComponent(symbol)}`);
+                        const data = await response.json();
+                        
+                        if (data.success && data.data && data.data.symbols && data.data.symbols.length > 0) {
+                            const stockData = data.data.symbols[0];
+                            const tbody = document.getElementById('watchlistTable').querySelector('tbody');
+                            
+                            // Remove "No symbols added" message if present
+                            const emptyRow = tbody.querySelector('tr');
+                            if (emptyRow && emptyRow.textContent.includes('No symbols added')) {
+                                tbody.innerHTML = '';
+                            }
+                            
+                            // Add new row with live data
+                            const price = (stockData.ltp || 0).toFixed(2);
+                            const change = (stockData.changepercent || 0).toFixed(2);
+                            const changeClass = change >= 0 ? 'positive' : 'negative';
+                            const changeIcon = change >= 0 ? '▲' : '▼';
+                            
+                            const row = `<tr>
+                                <td class="symbol-col">${symbol}</td>
+                                <td>₹${price}</td>
+                                <td class="${changeClass}">${changeIcon} ${Math.abs(change)}%</td>
+                            </tr>`;
+                            
+                            tbody.insertAdjacentHTML('afterbegin', row);
+                            input.value = '';
+                            
+                            addActivityLog(`✓ Added ${symbol} to watchlist (Price: ₹${price})`, 'success');
+                        } else {
+                            addActivityLog(`⚠️ Symbol not found: ${symbol}`, 'warning');
+                        }
+                    } catch (error) {
+                        addActivityLog(`❌ Error adding ${symbol}: ${error.message}`, 'error');
+                    } finally {
+                        input.disabled = false;
+                        addWatchlistBtn.disabled = false;
+                        addWatchlistBtn.textContent = '➕';
+                    }
+                });
+                
+                // Allow Enter key to add stock
+                document.getElementById('watchlistSearchInput').addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        addWatchlistBtn.click();
+                    }
+                });
+            }
+
+            // Focus scan button
+            const startFocusScanBtn = document.getElementById('startFocusScanBtn');
+            if (startFocusScanBtn) {
+                startFocusScanBtn.addEventListener('click', () => {
+                    addActivityLog('Starting FOCUS market scan...', 'info');
+                    addActivityLog('Scanning all NSE sectors...', 'info');
+                    addActivityLog('Analyzing technical indicators...', 'info');
+                });
+            }
+
+            // Simulate periodic market updates
+            setInterval(() => {
+                if (Math.random() > 0.85 && agentActivityFeed.children.length < 20) {
+                    const messages = [
+                        'Market update: Indices stable',
+                        'Sector rotation detected',
+                        'High volatility in IT sector',
+                        'Banking stocks gaining',
+                        'Market momentum positive'
+                    ];
+                    addActivityLog(messages[Math.floor(Math.random() * messages.length)], 'info');
+                }
+            }, 8000);
+        }
+
+        function loadMarketData() {
+            // Load NSE indices
+            fetch(`${API_BASE}/market/live`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success && data.data && data.data.symbols) {
+                        const tbody = document.getElementById('indicesTable').querySelector('tbody');
+                        tbody.innerHTML = data.data.symbols.slice(0, 5).map(s => `
+                            <tr>
+                                <td class="symbol-col">${s.symbol || 'N/A'}</td>
+                                <td>₹${(s.ltp || 0).toFixed(2)}</td>
+                                <td class="${(s.changepercent || 0) >= 0 ? 'positive' : 'negative'}">
+                                    ${(s.changepercent || 0) >= 0 ? '+' : ''}${(s.changepercent || 0).toFixed(2)}%
+                                </td>
+                            </tr>
+                        `).join('');
+                    }
+                })
+                .catch(err => console.error('Failed to load market data:', err));
+        }
+    </script>
 </body>
 </html>

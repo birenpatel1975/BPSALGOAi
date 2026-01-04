@@ -947,7 +947,17 @@ if (watchlistTabs && watchlistTabs.length) {
 }
 
 // Stock search and add functionality
+// Load custom symbols from localStorage on page load
 let customWatchlistSymbols = [];
+try {
+    const saved = localStorage.getItem('customWatchlistSymbols');
+    if (saved) {
+        customWatchlistSymbols = JSON.parse(saved);
+        console.log('✅ Loaded custom symbols from localStorage:', customWatchlistSymbols);
+    }
+} catch (e) {
+    console.warn('⚠️ Failed to load custom symbols from localStorage:', e);
+}
 
 const stockSearchInput = document.getElementById('stockSearchInput');
 const addStockBtn = document.getElementById('addStockBtn');
@@ -961,8 +971,9 @@ if (addStockBtn && stockSearchInput) {
             return;
         }
 
-        // Check if already in watchlist
-        if (customWatchlistSymbols.includes(symbol)) {
+        // Check if already in default or custom watchlist
+        const defaultSymbols = ['BANKNIFTY', 'FINNIFTY', 'GIFTNIFTY', 'NIFTY50', 'SENSEX'];
+        if (defaultSymbols.includes(symbol) || customWatchlistSymbols.includes(symbol)) {
             console.log(`${symbol} is already in watchlist`);
             if (typeof addLog !== 'undefined') addLog(`${symbol} is already in watchlist`, 'warning');
             return;
@@ -972,27 +983,34 @@ if (addStockBtn && stockSearchInput) {
         if (typeof addLog !== 'undefined') addLog(`Adding ${symbol} to watchlist...`, 'info');
         
         try {
-            // Fetch live data for this symbol
-            const response = await fetch(`${API_BASE}/market/live?symbols=${symbol}`);
+            // Fetch live data for this symbol to verify it exists
+            const response = await fetch(`${API_BASE}/market/live?symbols=${encodeURIComponent(symbol)}`);
             const data = await response.json();
             
             console.log('Add stock response:', data);
             
             if (data.success && data.data && data.data.symbols && data.data.symbols.length > 0) {
                 customWatchlistSymbols.push(symbol);
+                customWatchlistSymbols.sort(); // Keep alphabetically sorted
+                
+                // Save to localStorage for persistence
+                try {
+                    localStorage.setItem('customWatchlistSymbols', JSON.stringify(customWatchlistSymbols));
+                    console.log('💾 Saved custom symbols to localStorage');
+                } catch (e) {
+                    console.warn('⚠️ Failed to save to localStorage:', e);
+                }
+                
                 stockSearchInput.value = '';
-                console.log(`✅ Added ${symbol} to watchlist`);
+                console.log(`✅ Added ${symbol} to watchlist (total custom symbols: ${customWatchlistSymbols.length})`);
                 if (typeof addLog !== 'undefined') addLog(`✅ Added ${symbol} to watchlist`, 'success');
                 
-                // Directly refresh the algo watchlist
-                if (currentWatchlistTab === 'algo_top10') {
-                    await fetchAlgoWatchlist();
-                } else {
-                    await refreshCurrentWatchlistTab(true);
-                }
+                // Force immediate refresh
+                console.log('Triggering immediate refresh after adding symbol...');
+                await fetchAlgoWatchlist();
             } else {
                 console.warn(`⚠️ Could not fetch data for ${symbol}`, data);
-                if (typeof addLog !== 'undefined') addLog(`⚠️ Could not fetch data for ${symbol}`, 'warning');
+                if (typeof addLog !== 'undefined') addLog(`⚠️ Could not fetch data for ${symbol} (symbol may not exist)`, 'warning');
             }
         } catch (error) {
             console.error(`❌ Error adding ${symbol}:`, error);
@@ -1004,6 +1022,47 @@ if (addStockBtn && stockSearchInput) {
     stockSearchInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') {
             addStockBtn.click();
+        }
+    });
+}
+
+// Handle authenticated user watchlist button
+const authWatchlistBtn = document.getElementById('authWatchlistBtn');
+if (authWatchlistBtn) {
+    authWatchlistBtn.addEventListener('click', async () => {
+        console.log('Loading authenticated user watchlist...');
+        if (typeof addLog !== 'undefined') addLog('Loading authenticated user watchlist...', 'info');
+        
+        try {
+            const response = await fetch(`${API_BASE}/watchlist/tab/user`);
+            const data = await response.json();
+            
+            console.log('User watchlist response:', data);
+            
+            if (data.success && data.data && Array.isArray(data.data)) {
+                // Sort alphabetically
+                const sortedData = data.data.sort((a, b) => (a.symbol || '').localeCompare(b.symbol || ''));
+                console.log(`✅ Loaded ${sortedData.length} symbols from user watchlist`);
+                if (typeof addLog !== 'undefined') addLog(`✅ Loaded ${sortedData.length} symbols from user watchlist`, 'success');
+                displayAlgoWatchlistTable(sortedData);
+            } else if (data.data && data.data.symbols) {
+                const sortedData = data.data.symbols.sort((a, b) => (a.symbol || '').localeCompare(b.symbol || ''));
+                console.log(`✅ Loaded ${sortedData.length} symbols from user watchlist`);
+                if (typeof addLog !== 'undefined') addLog(`✅ Loaded ${sortedData.length} symbols from user watchlist`, 'success');
+                displayAlgoWatchlistTable(sortedData);
+            } else {
+                console.warn('No user watchlist data available - user may not be authenticated');
+                if (typeof addLog !== 'undefined') addLog('No user watchlist available - please authenticate with OTP first', 'warning');
+                if (watchlistTabContent) {
+                    watchlistTabContent.innerHTML = `<p class="placeholder">No authenticated user watchlist available. Please authenticate with OTP first or use the default Algo Watchlist.</p>`;
+                }
+            }
+        } catch (error) {
+            console.error('Error loading user watchlist:', error);
+            if (typeof addLog !== 'undefined') addLog(`Error loading user watchlist: ${error.message}`, 'error');
+            if (watchlistTabContent) {
+                watchlistTabContent.innerHTML = `<p class="placeholder">Error loading user watchlist: ${error.message}</p>`;
+            }
         }
     });
 }
@@ -1243,6 +1302,8 @@ if (miniGraphIntervalSelect) {
 // --- Watchlist table click handler ---
 function displayAlgoWatchlistTable(stocks) {
     algoWatchlistFull = stocks || [];
+    // Force alphabetical sort by symbol
+    algoWatchlistFull.sort((a, b) => (a.symbol || '').localeCompare(b.symbol || ''));
     const rows = algoWatchlistShowMore ? algoWatchlistFull : algoWatchlistFull.slice(0, 20);
     
     let html = `<div class="watchlist-container" style="padding: 16px; background: #0f172a; border-radius: 8px; margin-top: 12px;">
@@ -1374,37 +1435,30 @@ function fetchAlgoWatchlist() {
         console.warn('watchlistTabContent not found');
         return Promise.resolve();
     }
-    if (currentWatchlistTab !== 'algo_top10') {
-        console.log('Current tab is not algo_top10:', currentWatchlistTab);
-        return Promise.resolve();
-    }
     
-    console.log('Fetching live market data with custom symbols:', customWatchlistSymbols);
-    
+    // Always fetch to keep data fresh (alphabetically sorted)
     // Fetch ONLY live market data (real spot prices, not algo/option data)
-    // Default symbols: NIFTY50, BANKNIFTY, FINNIFTY, GIFTNIFTY, SENSEX
-    const defaultSymbols = ['NIFTY50', 'BANKNIFTY', 'FINNIFTY', 'GIFTNIFTY', 'SENSEX'];
-    const allSymbols = [...new Set([...defaultSymbols, ...customWatchlistSymbols])]; // Remove duplicates
+    // Default symbols sorted alphabetically
+    const defaultSymbols = ['BANKNIFTY', 'FINNIFTY', 'GIFTNIFTY', 'NIFTY50', 'SENSEX'];
+    const allSymbols = [...new Set([...defaultSymbols, ...customWatchlistSymbols])].sort(); // Remove duplicates and sort alphabetically
     
     const queryParams = allSymbols.map(s => `symbols=${encodeURIComponent(s)}`).join('&');
     
     return fetch(`${API_BASE}/market/live?${queryParams}`)
         .then(res => res.json())
         .then(data => {
-            console.log('Live market data fetched:', data);
-            
             let combinedData = [];
             
             // Use ONLY the live market data
             if (data.success && data.data && data.data.symbols) {
                 combinedData = Array.isArray(data.data.symbols) ? [...data.data.symbols] : [];
-                console.log('Live market symbols count:', combinedData.length);
-                console.log('Sample data:', combinedData.slice(0, 2));
+                // Sort alphabetically by symbol
+                combinedData.sort((a, b) => (a.symbol || '').localeCompare(b.symbol || ''));
             }
             
-            if (combinedData.length > 0) {
+            if (combinedData.length > 0 && currentWatchlistTab === 'algo_top10') {
                 displayAlgoWatchlistTable(combinedData);
-            } else if (watchlistTabContent) {
+            } else if (watchlistTabContent && currentWatchlistTab === 'algo_top10' && combinedData.length === 0) {
                 watchlistTabContent.innerHTML = `<p class="placeholder">No live market data available. Please try refreshing.</p>`;
             }
         })

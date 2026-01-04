@@ -179,21 +179,71 @@ class MStockAPI:
         # Return mock data as fallback
         logger.info(f"API unavailable, returning realistic mock data for {len(symbols)} symbols")
         import random
+        
+        # Realistic base prices for common symbols (approximate market values)
+        REALISTIC_PRICES = {
+            'NIFTY50': 26328.0,
+            'BANKNIFTY': 60150.0,
+            'FINNIFTY': 27899.0,
+            'GIFTNIFTY': 26521.0,
+            'SENSEX': 85762.0,
+            'NIFTYNEXT50': 70416.0,
+            'RELIANCE': 2850.0,
+            'TCS': 3950.0,
+            'INFY': 1845.0,
+            'HDFCBANK': 1650.0,
+            'ICICIBANK': 1275.0,
+            'SBIN': 825.0,
+            'BHARTIARTL': 1650.0,
+            'ITC': 465.0,
+            'HINDUNILVR': 2385.0,
+            'LT': 3615.0,
+            'KOTAKBANK': 1785.0,
+            'AXISBANK': 1145.0,
+            'ASIANPAINT': 2425.0,
+            'MARUTI': 12850.0,
+            'HINDALCO': 925.0,
+            'IDEA': 11.78,
+            'ASHOKLEY': 188.78,
+            'MOTHERSON': 122.04,
+            'CANBK': 154.87,
+        }
+        
         mock_data = []
         for sym in symbols:
+            # Get base price or generate one based on symbol name
+            base_price = REALISTIC_PRICES.get(sym.upper())
+            if not base_price:
+                # Generate semi-random but consistent price based on symbol hash
+                hash_val = sum(ord(c) for c in sym)
+                if 'NIFTY' in sym or 'SENSEX' in sym or 'IDX' in sym:
+                    base_price = 15000 + (hash_val % 50000)
+                else:
+                    base_price = 100 + (hash_val % 5000)
+            
+            # Add small random variations to simulate market movement
+            variation = random.uniform(-0.02, 0.02)  # ±2% variation
+            current_price = round(base_price * (1 + variation), 2)
+            prev_close = base_price
+            
+            change = round(current_price - prev_close, 2)
+            change_pct = round((change / prev_close) * 100, 2) if prev_close > 0 else 0
+            
             mock_data.append({
                 'symbol': sym,
                 'exchange': 'NSE',
-                'ltp': round(random.uniform(50, 60000), 2),
-                'open': round(random.uniform(50, 60000), 2),
-                'high': round(random.uniform(50, 60000), 2),
-                'low': round(random.uniform(50, 60000), 2),
-                'close': round(random.uniform(50, 60000), 2),
+                'ltp': current_price,
+                'price': current_price,
+                'open': round(prev_close * (1 + random.uniform(-0.01, 0.01)), 2),
+                'high': round(current_price * (1 + random.uniform(0, 0.015)), 2),
+                'low': round(current_price * (1 - random.uniform(0, 0.015)), 2),
+                'close': prev_close,
+                'prev_close': prev_close,
                 'volume': random.randint(1000000, 100000000),
-                'bid': round(random.uniform(50, 60000), 2),
-                'ask': round(random.uniform(50, 60000), 2),
-                'change': round(random.uniform(-5, 5), 2),
-                'changepercent': round(random.uniform(-5, 5), 2)
+                'bid': round(current_price * 0.999, 2),
+                'ask': round(current_price * 1.001, 2),
+                'change': change,
+                'changepercent': change_pct
             })
         
         return {'success': True, 'data': {'symbols': mock_data}, 'mock': True}
