@@ -141,7 +141,8 @@ def get_live_data():
     """Get live market data"""
     symbols = request.args.getlist('symbols')
     if not symbols:
-        symbols = None
+        # Use default symbols if none provided
+        symbols = ['NIFTY50', 'BANKNIFTY', 'FINNIFTY', 'GIFTNIFTY', 'SENSEX']
     data = mstock_api.get_live_data(symbols)
     return jsonify(data)
 
@@ -226,22 +227,22 @@ def get_watchlist():
 
 @api_bp.route('/watchlist/tab/<tab>', methods=['GET'])
 def get_watchlist_tab(tab):
-    """Get stocks for a specific watchlist tab. Tab 1 is for Algo Agent, others are sector-based or user's mStock account."""
+    """Get stocks for a specific watchlist tab. All tabs use the default watchlist."""
     try:
-        # Tab 1: Algo Agent's Top 10
-        if tab == 'algo_top10':
-            return jsonify(mstock_api.get_watchlist_tab('algo_top10'))
-        # Tab 2-7: Sectors or user's mStock account watchlist
-        elif tab in mstock_api.SECTOR_STOCKS:
-            return jsonify(mstock_api.get_watchlist_tab(tab))
-        elif tab == 'user':
-            # Replicate user's mStock account watchlist (authenticated)
-            watchlist = mstock_api.get_watchlist()
-            return jsonify(watchlist)
-        else:
-            return jsonify({'success': False, 'data': [], 'error': 'Invalid tab'})
+        logger.info(f"Loading watchlist tab: {tab}")
+        # Get default watchlist for all tabs
+        watchlist = mstock_api.get_watchlist()
+        logger.debug(f"Watchlist response: {watchlist}")
+        if not watchlist.get('success'):
+            logger.warning(f"Watchlist fetch returned non-success: {watchlist.get('error')}")
+            return jsonify({'success': False, 'data': [], 'error': f'Error loading tab: {watchlist.get("error", "Unknown error")}'}), 500
+        
+        # Extract symbols array from nested data structure
+        symbols = watchlist.get('data', [])
+        return jsonify({'success': True, 'data': symbols})
     except Exception as e:
-        logger.error(f"Error fetching watchlist tab {tab}: {e}")
+        logger.error(f"Error fetching watchlist tab {tab}: {e}", exc_info=True)
+        return jsonify({'success': False, 'data': [], 'error': f'Error loading tab: {str(e)}'}), 500
         return jsonify({'success': False, 'data': [], 'error': str(e)})
 
 @api_bp.route('/watchlist/tab/user', methods=['GET'])

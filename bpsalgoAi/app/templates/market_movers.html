@@ -30,18 +30,16 @@
         </header>
 
         <section class="card" style="margin-bottom:14px;">
-            <div class="watchlist-tabs" style="margin-bottom:10px;display:flex;gap:8px;flex-wrap:wrap;">
-                <button class="watchlist-tab" data-tab="algo_top10">Algo Top 10</button>
-                <button class="watchlist-tab" data-tab="auto">Auto Sector</button>
-                <button class="watchlist-tab" data-tab="finance">Finance/Banking</button>
-                <button class="watchlist-tab" data-tab="pharma">Pharma</button>
-                <button class="watchlist-tab" data-tab="metal">Metal</button>
-                <button class="watchlist-tab" data-tab="power">Power</button>
-                <button class="watchlist-tab" data-tab="penny">Penny Stocks</button>
+            <div class="watchlist-tabs" style="margin-bottom:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                <button class="watchlist-tab" data-tab="algo_top10" style="font-weight:600;">📊 Algo Watchlist</button>
+                <div style="display:flex;gap:6px;align-items:center;">
+                    <input type="text" id="stockSearchInput" placeholder="Search symbol (e.g., RELIANCE, TCS)" style="padding:8px 12px;border:1px solid #334155;border-radius:6px;background:#0f172a;color:#fff;width:250px;" />
+                    <button id="addStockBtn" class="btn btn-small" style="background:#10b981;">➕ Add</button>
+                </div>
                 <button id="viewAlgoPicksBtn" class="btn btn-small" style="margin-left:auto;">⚡ View Algo Picks</button>
             </div>
             <div class="watchlist-data watchlist-table-wrapper" id="watchlistTabContent" style="max-height:560px;overflow:auto;">
-                <p class="placeholder">Select a tab to view stocks...</p>
+                <p class="placeholder">Loading watchlist...</p>
             </div>
         </section>
 

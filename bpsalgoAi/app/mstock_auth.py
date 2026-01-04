@@ -173,10 +173,11 @@ class MStockAuth:
                 if refreshed and self.access_token:
                     return self.access_token
             except Exception as e:
-                logger.warning(f"Automatic refresh failed: {e}")
+                logger.debug(f"Automatic refresh failed: {e}")
 
-        logger.warning("Access token missing or expired. Please authenticate with OTP.")
-        logger.warning("Run: auth.step1_login() → receive OTP → auth.step2_session_token(otp)")
+        # Don't log warnings here - market endpoints have fallback to mock data
+        # This prevents spam when running without authentication
+        logger.debug("Access token missing or expired. Using mock data fallback.")
         return None
 
     def refresh_session(self) -> bool:

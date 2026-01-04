@@ -35,6 +35,9 @@ const summaryStatus = document.getElementById('summaryStatus');
 const summaryTicker = document.getElementById('summaryTicker');
 const summaryAction = document.getElementById('summaryAction');
 const summaryWatchlist = document.getElementById('summaryWatchlist');
+const tickerTextEl = document.getElementById('tickerText');
+const opportunitiesTable = document.getElementById('opportunitiesTable');
+const liveFeedEl = document.getElementById('liveFeed');
 // Add backtest toggle
 const backtestToggle = (() => {
     const existingToggle = document.getElementById('backtestToggle');
@@ -58,6 +61,8 @@ const backtestToggle = (() => {
 
     return document.getElementById('backtestToggle');
 })();
+
+const agentActivityText = document.getElementById('agentActivityText');
 
 // Initialize dashboard
 document.addEventListener('DOMContentLoaded', function() {
@@ -407,14 +412,17 @@ async function refreshMarketData() {
     try {
         if (refreshDataBtn) refreshDataBtn.disabled = true;
         addLog('Fetching live market data...', 'info');
+        // Fetch with default symbols
         const response = await fetch(`${API_BASE}/market/live`, {
             method: 'GET'
         });
         const data = await response.json();
+        console.log('Market data response:', data);
         if (data.success) {
             displayMarketData(data.data);
             addLog('✅ Market data loaded', 'success');
         } else {
+            console.warn('Market data fetch failed:', data);
             addLog('⚠️ Failed to load market data: ' + (data.error || 'Unknown error'), 'warning');
             // Display mock data on error
             if (data.data) {
@@ -938,6 +946,68 @@ if (watchlistTabs && watchlistTabs.length) {
     setActiveWatchlistTab(currentWatchlistTab);
 }
 
+// Stock search and add functionality
+let customWatchlistSymbols = [];
+
+const stockSearchInput = document.getElementById('stockSearchInput');
+const addStockBtn = document.getElementById('addStockBtn');
+
+if (addStockBtn && stockSearchInput) {
+    addStockBtn.addEventListener('click', async () => {
+        const symbol = stockSearchInput.value.trim().toUpperCase();
+        if (!symbol) {
+            console.log('Please enter a stock symbol');
+            if (typeof addLog !== 'undefined') addLog('Please enter a stock symbol', 'warning');
+            return;
+        }
+
+        // Check if already in watchlist
+        if (customWatchlistSymbols.includes(symbol)) {
+            console.log(`${symbol} is already in watchlist`);
+            if (typeof addLog !== 'undefined') addLog(`${symbol} is already in watchlist`, 'warning');
+            return;
+        }
+
+        console.log(`Adding ${symbol} to watchlist...`);
+        if (typeof addLog !== 'undefined') addLog(`Adding ${symbol} to watchlist...`, 'info');
+        
+        try {
+            // Fetch live data for this symbol
+            const response = await fetch(`${API_BASE}/market/live?symbols=${symbol}`);
+            const data = await response.json();
+            
+            console.log('Add stock response:', data);
+            
+            if (data.success && data.data && data.data.symbols && data.data.symbols.length > 0) {
+                customWatchlistSymbols.push(symbol);
+                stockSearchInput.value = '';
+                console.log(`✅ Added ${symbol} to watchlist`);
+                if (typeof addLog !== 'undefined') addLog(`✅ Added ${symbol} to watchlist`, 'success');
+                
+                // Directly refresh the algo watchlist
+                if (currentWatchlistTab === 'algo_top10') {
+                    await fetchAlgoWatchlist();
+                } else {
+                    await refreshCurrentWatchlistTab(true);
+                }
+            } else {
+                console.warn(`⚠️ Could not fetch data for ${symbol}`, data);
+                if (typeof addLog !== 'undefined') addLog(`⚠️ Could not fetch data for ${symbol}`, 'warning');
+            }
+        } catch (error) {
+            console.error(`❌ Error adding ${symbol}:`, error);
+            if (typeof addLog !== 'undefined') addLog(`❌ Error adding ${symbol}: ${error.message}`, 'error');
+        }
+    });
+
+    // Allow Enter key to add stock
+    stockSearchInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            addStockBtn.click();
+        }
+    });
+}
+
 function fetchWatchlistTab(tab, options = {}) {
     const silent = options.silent;
     if (!watchlistTabContent) {
@@ -962,31 +1032,68 @@ function fetchWatchlistTab(tab, options = {}) {
     return fetch(endpoint)
         .then(res => res.json())
         .then(data => {
-            if (data.success && Array.isArray(data.data)) {
-                if (data.data.length === 0) {
-                    watchlistTabContent.innerHTML = '<p class="placeholder">No stocks found for this tab.</p>';
-                } else {
-                    // Render a simple table for now
-                    let html = `<table class="watchlist-table"><thead><tr><th>Symbol</th><th>Price</th><th>Change</th></tr></thead><tbody>`;
-                    data.data.forEach(stock => {
-                        html += `<tr><td>${stock.symbol || '-'}</td><td>${stock.price || stock.ltp || '-'}</td><td>${stock.change || '-'}</td></tr>`;
-                    });
-                    html += '</tbody></table>';
-                    watchlistTabContent.innerHTML = html;
-                    // Attach click to open chart
-                    watchlistTabContent.querySelectorAll('tr').forEach(tr => {
-                        tr.addEventListener('click', () => {
-                            const sym = tr.children[0] ? tr.children[0].textContent : null;
-                            if (sym) {
-                                selectedSymbolMeta = { symbol: sym, price: tr.children[1] ? tr.children[1].textContent : null };
-                                showMiniGraph(sym);
-                            }
-                        });
-                    });
-                }
-            } else {
+            console.log('Watchlist data received:', data);
+            
+            if (!data.success) {
                 watchlistTabContent.innerHTML = `<p class="placeholder">Error loading tab: ${data.error || 'Unknown error'}</p>`;
+                return;
             }
+            
+            if (!Array.isArray(data.data) || data.data.length === 0) {
+                watchlistTabContent.innerHTML = '<p class="placeholder">No stocks found for this tab.</p>';
+                return;
+            }
+            
+            // Render a comprehensive table with all available data
+            let html = `<table class="watchlist-table" style="width:100%; border-collapse:collapse;">
+                <thead style="background:#1e40af; color:#fff;">
+                    <tr>
+                        <th style="padding:10px; text-align:left; border:1px solid #334155;">Symbol</th>
+                        <th style="padding:10px; text-align:right; border:1px solid #334155;">Price</th>
+                        <th style="padding:10px; text-align:right; border:1px solid #334155;">Change %</th>
+                        <th style="padding:10px; text-align:right; border:1px solid #334155;">Open</th>
+                        <th style="padding:10px; text-align:right; border:1px solid #334155;">High</th>
+                        <th style="padding:10px; text-align:right; border:1px solid #334155;">Low</th>
+                        <th style="padding:10px; text-align:right; border:1px solid #334155;">Close</th>
+                        <th style="padding:10px; text-align:right; border:1px solid #334155;">Volume</th>
+                    </tr>
+                </thead>
+                <tbody>`;
+            
+            data.data.forEach(stock => {
+                const price = stock.price || stock.ltp || stock.close || '-';
+                const change = parseFloat(stock.changepercent || stock.change || 0);
+                const changeDisplay = change ? change.toFixed(2) + '%' : '-';
+                const changeColor = change > 0 ? '#10b981' : change < 0 ? '#ef4444' : '#9ca3af';
+                
+                html += `<tr style="background:#0f172a; border-bottom:1px solid #334155;">
+                    <td style="padding:10px; border:1px solid #334155; font-weight:600; color:#3b82f6;">${stock.symbol || '-'}</td>
+                    <td style="padding:10px; border:1px solid #334155; text-align:right; color:#fff;">${formatPrice(price)}</td>
+                    <td style="padding:10px; border:1px solid #334155; text-align:right; color:${changeColor}; font-weight:600;">${changeDisplay}</td>
+                    <td style="padding:10px; border:1px solid #334155; text-align:right; color:#e2e8f0;">${formatPrice(stock.open || '-')}</td>
+                    <td style="padding:10px; border:1px solid #334155; text-align:right; color:#e2e8f0;">${formatPrice(stock.high || '-')}</td>
+                    <td style="padding:10px; border:1px solid #334155; text-align:right; color:#e2e8f0;">${formatPrice(stock.low || '-')}</td>
+                    <td style="padding:10px; border:1px solid #334155; text-align:right; color:#e2e8f0;">${formatPrice(stock.close || '-')}</td>
+                    <td style="padding:10px; border:1px solid #334155; text-align:right; color:#e2e8f0;">${formatVolume(stock.volume || '-')}</td>
+                </tr>`;
+            });
+            
+            html += '</tbody></table>';
+            watchlistTabContent.innerHTML = html;
+            
+            // Attach click to rows to open chart
+            watchlistTabContent.querySelectorAll('tbody tr').forEach(tr => {
+                tr.style.cursor = 'pointer';
+                tr.addEventListener('mouseenter', () => tr.style.background = '#1e293b');
+                tr.addEventListener('mouseleave', () => tr.style.background = '#0f172a');
+                tr.addEventListener('click', () => {
+                    const sym = tr.children[0] ? tr.children[0].textContent : null;
+                    if (sym) {
+                        selectedSymbolMeta = { symbol: sym, price: tr.children[1] ? tr.children[1].textContent : null };
+                        showMiniGraph(sym);
+                    }
+                });
+            });
         })
         .catch(err => {
             if (watchlistTabContent) {
@@ -994,6 +1101,24 @@ function fetchWatchlistTab(tab, options = {}) {
             }
             addLog('Watchlist fetch failed: ' + err.message, 'error');
         });
+}
+
+// Helper function to format price
+function formatPrice(val) {
+    if (val === '-' || !val) return '-';
+    const num = parseFloat(val);
+    if (isNaN(num)) return '-';
+    return num.toFixed(2);
+}
+
+// Helper function to format volume
+function formatVolume(val) {
+    if (val === '-' || !val) return '-';
+    const num = parseFloat(val);
+    if (isNaN(num)) return '-';
+    if (num >= 10000000) return (num / 10000000).toFixed(1) + 'Cr';
+    if (num >= 100000) return (num / 100000).toFixed(1) + 'L';
+    return num.toString();
 }
 
 // --- Mini-graph logic ---
@@ -1006,7 +1131,6 @@ const miniGraphTitle = document.getElementById('miniGraphTitle');
 const miniGraphIntervalSelect = document.getElementById('miniGraphInterval');
 const miniGraphPlaceholder = document.getElementById('miniGraphPlaceholder');
 const optionChainContent = document.getElementById('optionChainContent');
-const agentActivityText = document.getElementById('agentActivityText');
 const openChartPage = document.getElementById('openChartPage');
 
 let algoWatchlistFull = [];
@@ -1119,49 +1243,112 @@ if (miniGraphIntervalSelect) {
 // --- Watchlist table click handler ---
 function displayAlgoWatchlistTable(stocks) {
     algoWatchlistFull = stocks || [];
-    const rows = algoWatchlistShowMore ? algoWatchlistFull : algoWatchlistFull.slice(0, 10);
-    let html = `<table class="watchlist-table"><thead><tr>
-        <th>Symbol</th><th>Strike</th><th>LTP</th><th>Change %</th><th>Open</th><th>High</th><th>Low</th><th>Prev Close</th><th>Volume</th>
-    </tr></thead><tbody>`;
-    rows.forEach(stock => {
+    const rows = algoWatchlistShowMore ? algoWatchlistFull : algoWatchlistFull.slice(0, 20);
+    
+    let html = `<div class="watchlist-container" style="padding: 16px; background: #0f172a; border-radius: 8px; margin-top: 12px;">
+        <table class="watchlist-table" style="width:100%; border-collapse:collapse; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
+            <thead style="background: linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%); color: #fff; position: sticky; top: 0; z-index: 10;">
+                <tr>
+                    <th style="padding: 14px 12px; text-align: left; border: none; font-weight: 600; font-size: 13px; letter-spacing: 0.5px;">Symbol</th>
+                    <th style="padding: 14px 12px; text-align: right; border: none; font-weight: 600; font-size: 13px; letter-spacing: 0.5px;">Current</th>
+                    <th style="padding: 14px 12px; text-align: right; border: none; font-weight: 600; font-size: 13px; letter-spacing: 0.5px;">Change</th>
+                    <th style="padding: 14px 12px; text-align: right; border: none; font-weight: 600; font-size: 13px; letter-spacing: 0.5px;">% Change</th>
+                    <th style="padding: 14px 12px; text-align: right; border: none; font-weight: 600; font-size: 13px; letter-spacing: 0.5px;">Open</th>
+                    <th style="padding: 14px 12px; text-align: right; border: none; font-weight: 600; font-size: 13px; letter-spacing: 0.5px;">High</th>
+                    <th style="padding: 14px 12px; text-align: right; border: none; font-weight: 600; font-size: 13px; letter-spacing: 0.5px;">Low</th>
+                    <th style="padding: 14px 12px; text-align: right; border: none; font-weight: 600; font-size: 13px; letter-spacing: 0.5px;">Volume</th>
+                </tr>
+            </thead>
+            <tbody>`;
+    
+    rows.forEach((stock, index) => {
         symbolMeta[stock.symbol] = stock;
         const ltp = stock.price ?? stock.ltp ?? '-';
-        const strike = stock.strike ?? '-';
-        const changeRaw = stock.change_pct ?? stock.change ?? '-';
-        const changeNum = isFinite(parseFloat(changeRaw)) ? parseFloat(changeRaw) : null;
-        const changeText = changeNum !== null ? `${changeNum.toFixed(2)}%` : (changeRaw ?? '-');
-        const changeColor = changeNum > 0 ? 'green' : changeNum < 0 ? 'red' : '#e2e8f0';
+        
+        // Calculate actual change amount
+        const currentPrice = parseFloat(ltp);
+        const previousClose = parseFloat(stock.close ?? stock.prev_close ?? stock.last_close ?? 0);
+        const changeAmount = previousClose > 0 ? (currentPrice - previousClose) : 0;
+        const changePercent = previousClose > 0 ? ((changeAmount / previousClose) * 100) : 0;
+        
+        const changeColor = changeAmount > 0 ? '#10b981' : changeAmount < 0 ? '#ef4444' : '#9ca3af';
+        const changeSymbol = changeAmount > 0 ? '▲' : changeAmount < 0 ? '▼' : '';
+        
         const open = stock.open ?? '-';
         const high = stock.high ?? '-';
         const low = stock.low ?? '-';
-        const prevClose = stock.prev_close ?? stock.last_close ?? '-';
-        const volume = stock.volume_change ?? stock.volume ?? '-';
-        html += `<tr class="watchlist-row" data-symbol="${stock.symbol}">
-            <td>${stock.symbol}</td>
-            <td>${strike}</td>
-            <td>${ltp}</td>
-            <td style="color:${changeColor};font-weight:600;">${changeText}</td>
-            <td>${open}</td>
-            <td>${high}</td>
-            <td>${low}</td>
-            <td>${prevClose}</td>
-            <td>${volume}</td>
+        const volume = stock.volume ?? stock.volume_change ?? '-';
+        const volumeDisplay = volume !== '-' ? formatVolume(volume) : '-';
+        
+        const rowBgColor = index % 2 === 0 ? '#0f172a' : '#1a1f3a';
+        
+        html += `<tr class="watchlist-row" data-symbol="${stock.symbol}" 
+                 style="background: ${rowBgColor}; border-bottom: 1px solid #1e293b; 
+                        cursor: pointer; transition: all 0.2s ease; height: 50px;">
+            <td style="padding: 12px 12px; text-align: left; font-weight: 600; color: #3b82f6; font-size: 14px;">
+                ${stock.symbol}
+            </td>
+            <td style="padding: 12px 12px; text-align: right; color: #e2e8f0; font-size: 14px; font-weight: 600;">
+                ${formatPrice(ltp)}
+            </td>
+            <td style="padding: 12px 12px; text-align: right; color: ${changeColor}; font-weight: 600; font-size: 14px;">
+                ${changeSymbol} ${Math.abs(changeAmount).toFixed(2)}
+            </td>
+            <td style="padding: 12px 12px; text-align: right; color: ${changeColor}; font-weight: 600; font-size: 14px;">
+                ${changeAmount !== 0 ? (changePercent > 0 ? '+' : '') + changePercent.toFixed(2) + '%' : '-'}
+            </td>
+            <td style="padding: 12px 12px; text-align: right; color: #cbd5e1; font-size: 13px;">
+                ${formatPrice(open)}
+            </td>
+            <td style="padding: 12px 12px; text-align: right; color: #94a3b8; font-size: 13px;">
+                ${formatPrice(high)}
+            </td>
+            <td style="padding: 12px 12px; text-align: right; color: #94a3b8; font-size: 13px;">
+                ${formatPrice(low)}
+            </td>
+            <td style="padding: 12px 12px; text-align: right; color: #94a3b8; font-size: 13px;">
+                ${volumeDisplay}
+            </td>
         </tr>`;
     });
-    html += '</tbody></table>';
-    if (algoWatchlistFull.length > 10) {
-        html += `<div class="show-more-row"><button class="show-more-btn" id="toggleAlgoShowMore">${algoWatchlistShowMore ? 'Show Top 10' : 'Show More'}</button></div>`;
+    
+    html += `</tbody></table></div>`;
+    
+    if (algoWatchlistFull.length > 20) {
+        html += `<div style="padding: 16px; text-align: center; background: #0f172a; border-radius: 0 0 8px 8px; margin-top: -2px;">
+                    <button class="show-more-btn" id="toggleAlgoShowMore" 
+                            style="padding: 10px 20px; background: linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%); 
+                                   color: #fff; border: none; border-radius: 6px; cursor: pointer; 
+                                   font-weight: 600; transition: all 0.2s ease; font-size: 13px;">
+                        ${algoWatchlistShowMore ? '↑ Show Top 20' : '↓ Show All ' + algoWatchlistFull.length}
+                    </button>
+                </div>`;
     }
+    
     if (watchlistTabContent) watchlistTabContent.innerHTML = html;
-    if (miniGraphCanvas) {
-        document.querySelectorAll('.watchlist-row').forEach(row => {
-            row.addEventListener('click', function() {
+    
+    // Add row hover effect
+    document.querySelectorAll('.watchlist-row').forEach(row => {
+        row.addEventListener('mouseenter', () => {
+            row.style.background = '#1e293b';
+            row.style.boxShadow = '0 0 8px rgba(59, 130, 245, 0.15)';
+        });
+        row.addEventListener('mouseleave', () => {
+            const index = Array.from(row.parentNode.children).indexOf(row);
+            row.style.background = index % 2 === 0 ? '#0f172a' : '#1a1f3a';
+            row.style.boxShadow = 'none';
+        });
+        
+        // Click handler for mini graph (if canvas exists)
+        if (miniGraphCanvas) {
+            row.addEventListener('click', function(e) {
                 const sym = this.dataset.symbol;
                 selectedSymbolMeta = symbolMeta[sym] || null;
                 showMiniGraph(sym);
             });
-        });
-    }
+        }
+    });
+    
     const toggleBtn = document.getElementById('toggleAlgoShowMore');
     if (toggleBtn) {
         toggleBtn.addEventListener('click', () => {
@@ -1171,37 +1358,75 @@ function displayAlgoWatchlistTable(stocks) {
     }
 }
 
+// Remove custom stock from watchlist
+function removeCustomStock(symbol) {
+    const index = customWatchlistSymbols.indexOf(symbol);
+    if (index > -1) {
+        customWatchlistSymbols.splice(index, 1);
+        addLog(`Removed ${symbol} from watchlist`, 'info');
+        refreshCurrentWatchlistTab(true);
+    }
+}
+
 // --- Algo Agent Watchlist fetch/refresh ---
 function fetchAlgoWatchlist() {
-    if (!watchlistTabContent) return Promise.resolve();
-    if (currentWatchlistTab !== 'algo_top10') return;
-    return fetch('/api/algo/watchlist')
+    if (!watchlistTabContent) {
+        console.warn('watchlistTabContent not found');
+        return Promise.resolve();
+    }
+    if (currentWatchlistTab !== 'algo_top10') {
+        console.log('Current tab is not algo_top10:', currentWatchlistTab);
+        return Promise.resolve();
+    }
+    
+    console.log('Fetching live market data with custom symbols:', customWatchlistSymbols);
+    
+    // Fetch ONLY live market data (real spot prices, not algo/option data)
+    // Default symbols: NIFTY50, BANKNIFTY, FINNIFTY, GIFTNIFTY, SENSEX
+    const defaultSymbols = ['NIFTY50', 'BANKNIFTY', 'FINNIFTY', 'GIFTNIFTY', 'SENSEX'];
+    const allSymbols = [...new Set([...defaultSymbols, ...customWatchlistSymbols])]; // Remove duplicates
+    
+    const queryParams = allSymbols.map(s => `symbols=${encodeURIComponent(s)}`).join('&');
+    
+    return fetch(`${API_BASE}/market/live?${queryParams}`)
         .then(res => res.json())
         .then(data => {
-            if (data.success && Array.isArray(data.data)) {
-                displayAlgoWatchlistTable(data.data);
+            console.log('Live market data fetched:', data);
+            
+            let combinedData = [];
+            
+            // Use ONLY the live market data
+            if (data.success && data.data && data.data.symbols) {
+                combinedData = Array.isArray(data.data.symbols) ? [...data.data.symbols] : [];
+                console.log('Live market symbols count:', combinedData.length);
+                console.log('Sample data:', combinedData.slice(0, 2));
+            }
+            
+            if (combinedData.length > 0) {
+                displayAlgoWatchlistTable(combinedData);
             } else if (watchlistTabContent) {
-                watchlistTabContent.innerHTML = `<p class="placeholder">Error loading watchlist: ${data.error || 'Unknown error'}</p>`;
+                watchlistTabContent.innerHTML = `<p class="placeholder">No live market data available. Please try refreshing.</p>`;
             }
         })
         .catch(err => {
+            console.error('Error loading live market data:', err);
             if (watchlistTabContent && currentWatchlistTab === 'algo_top10') {
-                watchlistTabContent.innerHTML = `<p class="placeholder">Error loading watchlist: ${err.message}</p>`;
+                watchlistTabContent.innerHTML = `<p class="placeholder">Error loading live data: ${err.message}</p>`;
             }
         });
 }
 
-// --- Auto-refresh every 10s ---
+// --- Auto-refresh every 1 second for live data ---
 if (watchlistTabContent) {
-    setInterval(fetchAlgoWatchlist, 10000);
+    console.log('Setting up watchlist auto-refresh every 1 second...');
+    setInterval(fetchAlgoWatchlist, 1000);
+    console.log('Initial fetchAlgoWatchlist call...');
     fetchAlgoWatchlist();
+} else {
+    console.warn('watchlistTabContent element not found - watchlist will not load');
 }
 
 // --- Algo Agent live ticker, opportunities, and feed ---
-const tickerTextEl = document.getElementById('tickerText');
-const opportunitiesTable = document.getElementById('opportunitiesTable');
-const liveFeedEl = document.getElementById('liveFeed');
-
 function renderAlgoLivePanels(data) {
     if (tickerTextEl && data && data.ticker !== undefined) {
         tickerTextEl.textContent = data.ticker || 'Scanning...';

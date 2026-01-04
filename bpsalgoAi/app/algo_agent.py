@@ -146,7 +146,8 @@ class AlgoAgent:
 
                 # If still empty, wait and retry without exiting the agent
                 if not symbols_payload:
-                    self.log_action("Live data unavailable; retrying...")
+                    # Use debug instead of info to reduce log spam
+                    logger.debug(f"[{self.now_str()}] Live data unavailable; retrying...")
                     time.sleep(2)
                     continue
 
