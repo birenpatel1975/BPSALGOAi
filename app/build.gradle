@@ -22,7 +22,9 @@ android {
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            signingConfig signingConfigs.debug // Use debug for now, replace with release signing
+            // IMPORTANT: Configure release signing before production deployment
+            // See ANDROID_DEPLOYMENT.md for signing configuration instructions
+            // signingConfig signingConfigs.release
         }
         debug {
             minifyEnabled false

@@ -1,15 +1,17 @@
 package com.bpsalgoai.trading
 
 import android.os.Bundle
-import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import com.bpsalgoai.trading.databinding.ActivityMainBinding
 
 class MainActivity : AppCompatActivity() {
+    private lateinit var binding: ActivityMainBinding
+    
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
+        binding = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(binding.root)
         
-        val textView = findViewById<TextView>(R.id.textView)
-        textView.text = getString(R.string.welcome_message)
+        binding.textView.text = getString(R.string.welcome_message)
     }
 }
