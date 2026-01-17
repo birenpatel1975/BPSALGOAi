@@ -77,6 +77,52 @@
 
 ## 🚀 Quick Start
 
+### Step 1: Installation
+
+**Windows:**
+```batch
+git clone https://github.com/birenpatel1975/BPSALGOAi.git
+cd BPSALGOAi
+install.bat
+```
+
+The installer will prompt you to create desktop shortcuts.
+
+### Step 2: Create Desktop Shortcuts
+
+For easy access (if not created during installation):
+
+**Windows:**
+```batch
+create_shortcuts.bat
+```
+
+**Linux/Mac:**
+```bash
+./create_shortcuts.sh
+```
+
+This creates shortcuts on your desktop:
+- 🚀 **ROBOAi - Start Platform** - Launch trading engine
+- 🛑 **ROBOAi - Stop Platform** - Shutdown trading engine
+- 📊 **ROBOAi - Dashboard** - Start web dashboard  
+- 🌐 **ROBOAi - Open Dashboard** - Open in browser
+
+> 📖 See [SHORTCUTS_GUIDE.md](SHORTCUTS_GUIDE.md) for detailed guide
+
+### Step 3: Start Using
+
+**Web Dashboard (Recommended):**
+1. Double-click "📊 ROBOAi - Dashboard"
+2. Double-click "🌐 ROBOAi - Open Dashboard" (opens http://localhost:5000)
+3. Control everything from web UI
+
+**Console Mode:**
+1. Double-click "🚀 ROBOAi - Start Platform"
+2. Monitor via console
+
+## 🔧 Detailed Installation
+
 ### Windows Installation
 
 1. **Download the repository**:

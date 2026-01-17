@@ -158,16 +158,36 @@ echo ================================================================
 echo                Installation Complete!
 echo ================================================================
 echo.
-echo IMPORTANT NOTES:
-echo ----------------
-echo 1. Edit config.yaml and add your mStock API credentials
-echo 2. The platform starts in PAPER TRADING mode by default
-echo 3. Test thoroughly before enabling live trading
-echo 4. Read README.md for detailed usage instructions
+
+REM Ask about creating additional shortcuts
+set /p CREATE_SHORTCUTS="Create additional desktop shortcuts (Dashboard, Start/Stop)? (Y/N): "
+if /i "%CREATE_SHORTCUTS%"=="Y" (
+    echo.
+    call create_shortcuts.bat
+)
+
 echo.
-echo TO START THE APPLICATION:
-echo   - Double-click "ROBOAi Trading" on your desktop, OR
-echo   - Run: venv\Scripts\activate.bat ^&^& python -m roboai.main
+echo ================================================================
+echo          ROBOAi Trading Platform Ready!
+echo ================================================================
+echo.
+echo Quick Start Options:
+echo   [A] Web Dashboard (Recommended):
+echo       - Run: start_dashboard.bat (or use desktop shortcut)
+echo       - Open: http://localhost:5000 in browser
+echo.
+echo   [B] Console Mode:
+echo       - Run: start_roboai.bat (or use desktop shortcut)
+echo.
+echo Configuration:
+echo   - Edit config.yaml to add your mStock API credentials
+echo   - Platform starts in PAPER TRADING mode (safe)
+echo.
+echo Documentation:
+echo   - README.md - Full guide
+echo   - DASHBOARD_GUIDE.md - Web dashboard guide
+echo   - SHORTCUTS_GUIDE.md - Desktop shortcuts guide
+echo.
 echo.
 echo ================================================================
 echo.
