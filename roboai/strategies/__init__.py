@@ -1,6 +1,11 @@
 """Strategies package initialization"""
 
-# Placeholder for strategy modules
-# These would be implemented with specific trading strategies
+from .breakout import BreakoutStrategy
+from .mean_reversion import MeanReversionStrategy
+from .options_strategies import OptionsStrategies
 
-__all__ = []
+__all__ = [
+    'BreakoutStrategy',
+    'MeanReversionStrategy',
+    'OptionsStrategies',
+]

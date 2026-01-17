@@ -1,6 +1,7 @@
 """Analysis package initialization"""
 
-# Placeholder for analysis modules
-# These would be implemented with technical analysis and sentiment analysis
+from .technical_indicators import TechnicalIndicators
 
-__all__ = []
+__all__ = [
+    'TechnicalIndicators',
+]

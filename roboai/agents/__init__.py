@@ -9,6 +9,7 @@ from .sentiment_agent import SentimentAgent
 from .strategy_agent import StrategyAgent
 from .execution_agent import ExecutionAgent
 from .rca_agent import RCAAgent
+from .prompt_agent import PromptAgent
 
 __all__ = [
     'BaseAgent',
@@ -20,4 +21,5 @@ __all__ = [
     'StrategyAgent',
     'ExecutionAgent',
     'RCAAgent',
+    'PromptAgent',
 ]
