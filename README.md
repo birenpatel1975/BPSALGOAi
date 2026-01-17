@@ -165,11 +165,31 @@ risk:
 
 ### Starting the Platform
 
+**Option 1: Using convenience scripts (Recommended)**
+
+Windows:
+```batch
+start_roboai.bat
+```
+
+Linux/Mac:
 ```bash
+./start_roboai.sh
+```
+
+**Option 2: Direct Python command**
+
+```bash
+# Activate virtual environment first
+# Windows: venv\Scripts\activate
+# Linux/Mac: source venv/bin/activate
+
 python -m roboai.main
 ```
 
 You'll see the startup banner with important warnings and configuration info.
+
+> **📝 Note:** For detailed server commands including background mode, status checks, and troubleshooting, see [SERVER_COMMANDS.md](SERVER_COMMANDS.md)
 
 ### Paper Trading Mode (Default)
 
@@ -198,9 +218,27 @@ The platform provides:
 
 ### Stopping the Platform
 
-- Press `Ctrl+C` to gracefully shutdown
-- All agents will stop cleanly
-- Database connections will close properly
+**Option 1: Graceful shutdown (Recommended)**
+- Press `Ctrl+C` in the terminal where the platform is running
+
+**Option 2: Using stop scripts**
+
+Windows:
+```batch
+stop_roboai.bat
+```
+
+Linux/Mac:
+```bash
+./stop_roboai.sh
+```
+
+The platform will:
+- Stop all agents gracefully
+- Close database connections properly
+- Save final state
+
+> **📝 Note:** See [SERVER_COMMANDS.md](SERVER_COMMANDS.md) for advanced options like background mode and service management
 
 ## 🏗️ Project Structure
 

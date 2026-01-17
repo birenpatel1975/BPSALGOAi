@@ -87,6 +87,18 @@ Expected output:
 
 ### Starting the Platform
 
+**Using convenience scripts (Recommended):**
+
+```bash
+# Windows
+start_roboai.bat
+
+# Linux/Mac
+./start_roboai.sh
+```
+
+**Using direct Python command:**
+
 ```bash
 # Windows
 venv\Scripts\activate
@@ -115,7 +127,21 @@ The platform provides:
 
 ### Stopping
 
+**Using stop scripts:**
+
+```bash
+# Windows
+stop_roboai.bat
+
+# Linux/Mac
+./stop_roboai.sh
+```
+
+**Using keyboard:**
+
 Press `Ctrl+C` for graceful shutdown
+
+> **📝 For detailed server commands**, see [SERVER_COMMANDS.md](SERVER_COMMANDS.md)
 
 ## Paper Trading Mode
 
