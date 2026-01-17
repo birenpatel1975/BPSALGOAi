@@ -40,3 +40,6 @@ colorlog>=6.8.0
 # Utilities
 python-dotenv>=1.0.0
 schedule>=1.2.0
+
+# Notifications (Windows)
+win10toast>=0.9; platform_system == "Windows"

@@ -4,6 +4,7 @@ from .config_manager import ConfigManager, get_config
 from .logger import Logger, get_logger
 from .database import Database, get_database
 from .backup import BackupManager, create_backup, restore_backup
+from .notifications import NotificationManager, get_notification_manager
 
 __all__ = [
     'ConfigManager',
@@ -15,4 +16,6 @@ __all__ = [
     'BackupManager',
     'create_backup',
     'restore_backup',
+    'NotificationManager',
+    'get_notification_manager',
 ]
