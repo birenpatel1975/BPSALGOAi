@@ -18,7 +18,8 @@ from roboai.agents import (
     SentimentAgent,
     StrategyAgent,
     ExecutionAgent,
-    RCAAgent
+    RCAAgent,
+    PromptAgent
 )
 
 
@@ -38,6 +39,7 @@ class ROBOAiPlatform:
         self.strategy_agent: Optional[StrategyAgent] = None
         self.execution_agent: Optional[ExecutionAgent] = None
         self.rca_agent: Optional[RCAAgent] = None
+        self.prompt_agent: Optional[PromptAgent] = None
         
         self._shutdown = False
     
@@ -123,6 +125,9 @@ class ROBOAiPlatform:
             
             self.rca_agent = RCAAgent()
             self.agent_manager.register_agent(self.rca_agent)
+            
+            self.prompt_agent = PromptAgent()
+            self.agent_manager.register_agent(self.prompt_agent)
             
             self.logger.info("All agents initialized successfully")
             return True
