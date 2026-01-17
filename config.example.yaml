@@ -100,3 +100,29 @@ rca:
   enabled: true
   auto_adjust: false  # Auto-adjust strategy parameters
   learning_rate: 0.1  # Learning rate for parameter adjustments
+
+# Advanced Strategy Configuration
+strategy:
+  # High-Precision Algo Strategies
+  vwap_pullback_enabled: true
+  ema_cloud_scalp_enabled: true
+  gamma_blast_enabled: false  # Advanced option strategy
+  orb_enabled: true  # Opening Range Breakout
+  
+  # Profit Locking (₹500 Threshold)
+  profit_lock_threshold: 500  # Minimum profit to activate safety mode
+  trailing_sl_percent: 20  # Trailing stop loss percentage
+  
+  # Entry Conditions
+  rsi_threshold_ce: 60  # RSI above this for CE entry
+  rsi_threshold_pe: 40  # RSI below this for PE entry
+  vwap_crossover: true  # Require VWAP confirmation
+  ema_crossover: true  # Require EMA crossover
+  
+  # Option Selection
+  option_type: "ATM"  # ATM (At-the-money) for maximum liquidity
+  strike_selection: "weekly"  # weekly or monthly
+  
+  # Position Management
+  max_gain_trailing: true  # Continue trailing for higher gains
+  floor_protection: true  # Never lose more than 20% of peak gain

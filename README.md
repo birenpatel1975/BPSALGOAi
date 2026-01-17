@@ -163,9 +163,34 @@ risk:
 
 ## 📖 Usage
 
-### Starting the Platform
+### Starting the Web Dashboard (Recommended)
 
-**Option 1: Using convenience scripts (Recommended)**
+The easiest way to use ROBOAi is through the web dashboard:
+
+**Windows:**
+```batch
+start_dashboard.bat
+```
+
+**Linux/Mac:**
+```bash
+./start_dashboard.sh
+```
+
+Then open your browser to: **http://localhost:5000**
+
+The web dashboard provides:
+- 🎛️ **Easy Controls**: Toggle between paper/live mode and algo/manual trading
+- 📊 **Real-time P&L**: Live profit/loss monitoring with charts
+- 👁️ **Agent Status**: Monitor all 8 trading agents
+- 📈 **Positions & Trades**: View active positions and trade history
+- ⚙️ **Configuration**: Adjust strategy parameters on the fly
+
+> **📝 For detailed dashboard guide**, see [DASHBOARD_GUIDE.md](DASHBOARD_GUIDE.md)
+
+### Starting the Platform (Console Mode)
+
+**Option 1: Using convenience scripts**
 
 Windows:
 ```batch

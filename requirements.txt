@@ -27,6 +27,9 @@ plotly>=5.18.0
 
 # UI Framework
 tk>=0.1.0
+flask>=3.0.0
+flask-cors>=4.0.0
+flask-socketio>=5.3.0
 
 # Database
 aiosqlite>=0.19.0
