@@ -1,6 +1,7 @@
 """Strategy Agent - Identifies trading opportunities"""
 
 import asyncio
+import random
 from typing import Dict, Optional, Any, List
 from .base_agent import BaseAgent
 from ..utils.config_manager import get_config
@@ -43,7 +44,6 @@ class StrategyAgent(BaseAgent):
             Opportunity details or None
         """
         # Mock strategy evaluation
-        import random
         
         # Calculate potential gain
         potential_gain = random.uniform(500, 2000)

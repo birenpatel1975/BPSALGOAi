@@ -2,7 +2,7 @@
 
 import os
 import yaml
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple, List
 from pathlib import Path
 
 
@@ -76,7 +76,7 @@ class ConfigManager:
         except Exception as e:
             raise IOError(f"Failed to save configuration: {e}")
     
-    def validate_config(self) -> tuple[bool, list[str]]:
+    def validate_config(self) -> Tuple[bool, List[str]]:
         """
         Validate configuration
         Returns: (is_valid, list of errors)

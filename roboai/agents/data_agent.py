@@ -1,6 +1,7 @@
 """Data Agent - Handles real-time data fetching and caching"""
 
 import asyncio
+import random
 from typing import Dict, Optional, Any, List
 from datetime import datetime, timedelta
 from .base_agent import BaseAgent
@@ -103,7 +104,6 @@ class DataAgent(BaseAgent):
     
     def _generate_mock_quote(self, symbol: str, exchange: str) -> Dict[str, Any]:
         """Generate mock quote data for testing"""
-        import random
         base_price = 1000.0
         
         return {

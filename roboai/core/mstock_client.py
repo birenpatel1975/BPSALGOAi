@@ -2,6 +2,7 @@
 
 import asyncio
 import aiohttp
+import random
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 from ..utils.logger import get_logger
@@ -256,7 +257,6 @@ class MStockClient:
             raise RuntimeError("Not authenticated. Call authenticate() first.")
         
         # Mock response - would be replaced with actual API call
-        import random
         base_price = 1000.0
         
         return {

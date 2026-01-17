@@ -108,7 +108,8 @@ def test_database():
         import os
         
         # Use temp database for testing
-        temp_db = tempfile.mktemp(suffix='.db')
+        fd, temp_db = tempfile.mkstemp(suffix='.db')
+        os.close(fd)  # Close file descriptor
         db = get_database(temp_db)
         print(f"✓ Database created: {temp_db}")
         

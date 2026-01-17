@@ -1,6 +1,7 @@
 """Sentiment Analysis Agent"""
 
 import asyncio
+import random
 from typing import Dict, Optional, Any, List
 from datetime import datetime
 from .base_agent import BaseAgent
@@ -34,8 +35,6 @@ class SentimentAgent(BaseAgent):
             Sentiment analysis results
         """
         # Mock sentiment analysis - would integrate with news APIs, social media, etc.
-        import random
-        
         sentiment_score = random.uniform(-1.0, 1.0)
         
         if sentiment_score > 0.3:
