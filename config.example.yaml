@@ -1,0 +1,102 @@
+# mStock API Configuration
+mstock:
+  api_key: ""  # Your mStock API key
+  api_secret: ""  # Your mStock API secret
+  totp_secret: ""  # Your TOTP secret key
+  client_code: ""  # Your client code
+  
+# Trading Configuration
+trading:
+  mode: "paper"  # Options: "paper" or "live" (IMPORTANT: Use paper trading first!)
+  auto_trade: false  # Enable/disable auto-trading
+  min_gain_target: 1000  # Minimum gain target in INR
+  max_positions: 5  # Maximum concurrent positions
+  stop_loss_percent: 2  # Stop loss percentage
+  target_profit_percent: 5  # Target profit percentage
+  
+# Market Configuration
+markets:
+  nse_enabled: true  # Enable NSE market scanning
+  global_enabled: true  # Enable global market scanning
+  indices:
+    - NIFTY50
+    - BANKNIFTY
+    - NIFTYAUTO
+    - NIFTYPHARMA
+    - NIFTYMETAL
+    - CRUDEOIL
+  
+# Scanning Configuration
+scanning:
+  scan_interval: 60  # Scan interval in seconds
+  fo_scan_enabled: true  # Enable F&O scanning
+  market_hours:
+    start: "09:15"  # Market open time
+    end: "15:30"  # Market close time
+  
+# Technical Indicators Configuration
+technical:
+  rsi_period: 14
+  rsi_overbought: 70
+  rsi_oversold: 30
+  macd_fast: 12
+  macd_slow: 26
+  macd_signal: 9
+  bb_period: 20
+  bb_std: 2
+  ema_short: 9
+  ema_long: 21
+  sma_period: 50
+  
+# Network Configuration
+network:
+  reconnect_interval: 60  # Auto-reconnect interval in seconds
+  preferred_connection: "5g"  # Preferred network type
+  max_retries: 5  # Maximum reconnection attempts
+  retry_delay: 10  # Delay between retries in seconds
+  
+# Logging Configuration
+logging:
+  level: "INFO"  # Options: DEBUG, INFO, WARNING, ERROR, CRITICAL
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file_enabled: true
+  console_enabled: true
+  
+# Database Configuration
+database:
+  path: "data/roboai.db"
+  backup_enabled: true
+  backup_interval: 3600  # Backup interval in seconds (1 hour)
+  
+# UI Configuration
+ui:
+  theme: "dark"  # Options: "light" or "dark"
+  refresh_rate: 1000  # UI refresh rate in milliseconds
+  chart_type: "candlestick"  # Options: "candlestick", "line", "ohlc"
+  
+# Alert Configuration
+alerts:
+  enabled: true
+  sound_enabled: false
+  notification_enabled: true
+  
+# Risk Management
+risk:
+  max_daily_loss: 5000  # Maximum daily loss in INR
+  max_position_size: 10000  # Maximum position size in INR
+  circuit_breaker_enabled: true  # Stop trading on excessive losses
+  
+# Sentiment Analysis
+sentiment:
+  enabled: true
+  sources:
+    - "newsapi"
+    - "twitter"
+    - "reddit"
+  update_interval: 300  # Update interval in seconds (5 minutes)
+  
+# RCA Configuration
+rca:
+  enabled: true
+  auto_adjust: false  # Auto-adjust strategy parameters
+  learning_rate: 0.1  # Learning rate for parameter adjustments
