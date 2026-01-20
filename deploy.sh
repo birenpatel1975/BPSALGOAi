@@ -4,6 +4,26 @@
 
 set -e  # Exit on error
 
+# Parse command line arguments
+AUTO_YES=false
+for arg in "$@"; do
+    case $arg in
+        -y|--yes|--auto)
+            AUTO_YES=true
+            shift
+            ;;
+        -h|--help)
+            echo "Usage: $0 [OPTIONS]"
+            echo ""
+            echo "Options:"
+            echo "  -y, --yes, --auto    Skip all interactive prompts (for automation)"
+            echo "  -h, --help           Show this help message"
+            echo ""
+            exit 0
+            ;;
+    esac
+done
+
 # Color codes for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -134,15 +154,18 @@ check_prerequisites() {
     
     # Check disk space
     log_info "Checking disk space..."
-    AVAILABLE_SPACE=$(df -BM . | awk 'NR==2 {print $4}' | sed 's/M//')
-    if [ "$AVAILABLE_SPACE" -gt 500 ]; then
+    AVAILABLE_SPACE=$(df -BM . 2>/dev/null | awk 'NR==2 {print $4}' | sed 's/M//' || echo "0")
+    if [ -n "$AVAILABLE_SPACE" ] && [ "$AVAILABLE_SPACE" -gt 500 ]; then
         log_success "Sufficient disk space available (${AVAILABLE_SPACE}MB)"
-    else
+    elif [ -n "$AVAILABLE_SPACE" ] && [ "$AVAILABLE_SPACE" -gt 0 ]; then
         log_warning "Low disk space: ${AVAILABLE_SPACE}MB (recommended: 500MB+)"
+    else
+        log_warning "Could not determine disk space"
     fi
     
     # Check internet connectivity
     log_info "Checking internet connectivity..."
+    # Try PyPI first (most relevant), then fallback to Google DNS (8.8.8.8) as it's reliable and widely available
     if ping -c 1 pypi.org &> /dev/null || ping -c 1 8.8.8.8 &> /dev/null; then
         log_success "Internet connectivity confirmed"
     else
@@ -194,13 +217,18 @@ setup_virtualenv() {
     
     if [ -d "venv" ]; then
         log_info "Virtual environment already exists"
-        read -p "Do you want to recreate it? (y/N): " -n 1 -r
-        echo
-        if [[ $REPLY =~ ^[Yy]$ ]]; then
-            log_info "Removing existing virtual environment..."
-            rm -rf venv
+        if [ "$AUTO_YES" = false ]; then
+            read -p "Do you want to recreate it? (y/N): " -n 1 -r
+            echo
+            if [[ $REPLY =~ ^[Yy]$ ]]; then
+                log_info "Removing existing virtual environment..."
+                rm -rf venv
+            else
+                log_info "Using existing virtual environment"
+                return 0
+            fi
         else
-            log_info "Using existing virtual environment"
+            log_info "Using existing virtual environment (auto mode)"
             return 0
         fi
     fi
@@ -363,11 +391,15 @@ main() {
     echo "  6. Run tests"
     echo ""
     
-    read -p "Continue with deployment? (Y/n): " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]] && [[ -n $REPLY ]]; then
-        log_info "Deployment cancelled"
-        exit 0
+    if [ "$AUTO_YES" = false ]; then
+        read -p "Continue with deployment? (Y/n): " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]] && [[ -n $REPLY ]]; then
+            log_info "Deployment cancelled"
+            exit 0
+        fi
+    else
+        log_info "Running in auto mode - skipping confirmation"
     fi
     
     # Run deployment steps

@@ -3,13 +3,33 @@
 ## 🚀 One-Command Deployment
 
 ### Linux/Mac
+
+**Interactive Mode:**
 ```bash
 ./deploy.sh
+```
+
+**Automated Mode (CI/CD, no prompts):**
+```bash
+./deploy.sh --yes
 ```
 
 ### Windows
 ```batch
 install.bat
+```
+
+## 🎯 Command Options
+
+### deploy.sh Options
+
+- **No flags**: Interactive mode with prompts
+- **-y, --yes, --auto**: Skip all interactive prompts (for automation)
+- **-h, --help**: Show help message
+
+Example for CI/CD:
+```bash
+./deploy.sh --yes
 ```
 
 ## ✅ What Gets Checked
