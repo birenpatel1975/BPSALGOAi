@@ -79,14 +79,30 @@
 
 ### Step 1: Installation
 
-**Windows:**
+**Automated Deployment (Recommended):**
+
+For Linux/Mac:
+```bash
+git clone https://github.com/birenpatel1975/BPSALGOAi.git
+cd BPSALGOAi
+./deploy.sh
+```
+
+For Windows:
 ```batch
 git clone https://github.com/birenpatel1975/BPSALGOAi.git
 cd BPSALGOAi
 install.bat
 ```
 
-The installer will prompt you to create desktop shortcuts.
+The installer will:
+- ✅ Check all prerequisites (Python 3.10+, pip, venv, etc.)
+- ✅ Create virtual environment and install dependencies
+- ✅ Set up configuration and directories
+- ✅ Run validation tests
+- ✅ Prompt you to create desktop shortcuts (Windows)
+
+> 📖 See [QUICK_DEPLOY.md](QUICK_DEPLOY.md) for one-command deployment or [DEPLOYMENT.md](DEPLOYMENT.md) for detailed deployment guide
 
 ### Step 2: Create Desktop Shortcuts
 
@@ -123,40 +139,49 @@ This creates shortcuts on your desktop:
 
 ## 🔧 Detailed Installation
 
-### Windows Installation
+### Automated Installation (Recommended)
 
-1. **Download the repository**:
-   ```batch
-   git clone https://github.com/birenpatel1975/BPSALGOAi.git
-   cd BPSALGOAi
-   ```
+**Linux/Mac:**
+```bash
+# Clone repository
+git clone https://github.com/birenpatel1975/BPSALGOAi.git
+cd BPSALGOAi
 
-2. **Run the installer**:
-   ```batch
-   install.bat
-   ```
-   
-   The installer will:
-   - Check Python installation
-   - Create virtual environment
-   - Install dependencies
-   - Create configuration file
-   - Create desktop shortcut
-   - Optionally create backup
+# Run automated deployment
+./deploy.sh
+```
 
-3. **Configure the platform**:
-   - Edit `config.yaml` and add your API credentials (optional for paper trading)
-   - Review and adjust trading parameters
+**Windows:**
+```batch
+# Clone repository
+git clone https://github.com/birenpatel1975/BPSALGOAi.git
+cd BPSALGOAi
 
-4. **Start the platform**:
-   - Double-click "ROBOAi Trading" on your desktop, OR
-   - Run: `venv\Scripts\activate && python -m roboai.main`
+# Run Windows installer
+install.bat
+```
 
-### Manual Installation
+The automated deployment script will:
+- ✅ Check Python 3.10+ installation
+- ✅ Verify pip and venv availability
+- ✅ Check system dependencies
+- ✅ Create backup of existing data
+- ✅ Set up virtual environment
+- ✅ Install all 68 required packages
+- ✅ Create configuration from template
+- ✅ Create required directories
+- ✅ Run validation tests (5 tests)
+- ✅ Display next steps and usage instructions
+
+> 📖 For deployment details, see [QUICK_DEPLOY.md](QUICK_DEPLOY.md) or [DEPLOYMENT.md](DEPLOYMENT.md)
+
+### Manual Installation (Alternative)
+
+If you prefer manual control or need to troubleshoot:
 
 ```bash
 # Create virtual environment
-python -m venv venv
+python3 -m venv venv
 
 # Activate virtual environment
 # On Windows:
@@ -164,17 +189,28 @@ venv\Scripts\activate
 # On Linux/Mac:
 source venv/bin/activate
 
+# Upgrade pip
+python -m pip install --upgrade pip
+
 # Install dependencies
 pip install -r requirements.txt
 
 # Create configuration
 cp config.example.yaml config.yaml
 
+# Create required directories
+mkdir -p data logs backups
+
 # Edit config.yaml with your settings
+
+# Run validation tests
+python test_platform.py
 
 # Run the platform
 python -m roboai.main
 ```
+
+> 📖 For detailed manual installation steps, see [DEPLOYMENT.md](DEPLOYMENT.md)
 
 ## ⚙️ Configuration
 
